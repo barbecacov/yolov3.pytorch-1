@@ -1,12 +1,10 @@
 import os
 import torch
 import numpy as np
-from torchvision import transforms
 from PIL import Image, ImageFont, ImageDraw, ImageEnhance
 opj = os.path.join
 
 import config
-from dataset import TestDataset
 
 def parse_cfg(cfgfile):
   """
@@ -84,30 +82,6 @@ def IoU(box1, box2):
   return inter_area / (b1_area + b2_area - inter_area)
 
 
-def prepare_eval_dataset(path, reso, batch_size=1):
-  """
-  Prepare dataset for evaluation
-
-  @args
-    path: (str) path to images
-    reso: (int) evaluation image resolution
-    batch_size: (int) default 1
-
-  @returns
-    img_datasets: (torchvision.datasets) test image datasets
-    dataloader: (DataLoader)
-  """
-  transform = transforms.Compose([
-      transforms.Resize(size=(reso, reso), interpolation=3),
-      transforms.ToTensor()
-  ])
-
-  img_datasets = TestDataset(path, transform)
-  dataloader = torch.utils.data.DataLoader(img_datasets, batch_size=batch_size, num_workers=4)
-
-  return img_datasets, dataloader
-
-
 def save_detection(img_path, detection, dets_dir, reso):
   """
   Draw and save detection result
@@ -124,7 +98,7 @@ def save_detection(img_path, detection, dets_dir, reso):
 
   img = Image.open(img_path)
   w, h = img.size
-  h_ratio = h / reso  # TODO: fix consts
+  h_ratio = h / reso
   w_ratio = w / reso
   h_ratio, w_ratio
   draw = ImageDraw.Draw(img)

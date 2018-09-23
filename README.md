@@ -38,7 +38,7 @@ To be implemented
 ### How to run this code
 
 1. Download pretrained YOLO v3 weights [here](https://pjreddie.com/media/files/yolov3.weights) and move it to `static/yolov3.weights`
-2. Run `python test.py --save`
+2. Run `python test.py`
 3. You can sepcify detection images directory and detection results directory in `config.py`
 
 ### Inputs arguments
@@ -47,7 +47,7 @@ To be implemented
 
 ### Evaluation example
 
-![](https://raw.githubusercontent.com/ECer23/yolov3.pytorch/master/assets/dets/person.jpg)
+![](https://raw.githubusercontent.com/ECer23/yolov3.pytorch/master/assets/dets/messi.jpg)
 
 ## ✅ TODO
 

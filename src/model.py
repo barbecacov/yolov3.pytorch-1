@@ -11,14 +11,10 @@ class YOLOv3(nn.Module):
   """YOLO v3 model"""
 
   def __init__(self, cfgfile, input_dim):
-    """Init model
+    """
     @args
       cfgfile: (str) path to yolo v3 config file
       input_dim: (int) 
-    @return
-      detections: (torch.Tensor) detection result, with size [batch_size, 10647, 85]
-        10647 = 3549 * 3 (scales)
-        85 = 80 (classes) + 4 (offsets) + 1 (objectness)
     """
     super(YOLOv3, self).__init__()
     self.blocks = parse_cfg(cfgfile)
@@ -120,7 +116,18 @@ class YOLOv3(nn.Module):
     return module_list
 
   def forward(self, x):
-    detections = []  # detection results
+    """
+    Forwarad pass of YOLO v3
+
+    @args
+      x: (torch.Tensor) input Tensor, with size [batch_size, C, H, W]
+    
+    @return
+      detections: (torch.Tensor) detection in different scales, with size [batch_size, # bboxes, 85]
+        # bboxes => 13 * 13 (# grid size in last feature map) * 3 (# anchor boxes) * 3 (# scales)
+        85 => [4 offsets, objectness score, 80 class score]
+    """
+    detections = torch.Tensor()  # detection results
     outputs = dict()   # output cache for route layer
 
     for i, block in enumerate(self.blocks):
@@ -152,7 +159,7 @@ class YOLOv3(nn.Module):
 
       elif block['type'] == 'yolo':
         x = self.module_list[i](x)
-        detections = x if len(detections) == 0 else torch.cat((detections, x), 1)
+        detections = x if len(detections.size()) == 1 else torch.cat((detections, x), 1)
         outputs[i] = outputs[i-1]  # skip
 
     return detections
@@ -224,20 +231,21 @@ class YOLOv3(nn.Module):
 def nms(prediction, num_classes, conf_thresh=0.5, nms_thresh=0.4):
   """
   Perform Non-maximum Suppression
-    1. Filter low confidence prediction
+    1. Filter background
     2. Get prediction with particular class
     3. Sort by confidence
     4. Suppress non-max prediction
 
   @args
-    prediction: (torch.Tensor) prediction feature map
+    prediction: (torch.Tensor) prediction feature map, with size [batch_idx, # bboxes, 85]
+      85 => [4 offsets, objectness score, 80 class score]
     num_class: (int)
-    conf_thresh: (float) confidence threshold, above which prediction considered valid, default 0.5
+    conf_thresh: (float) fore-ground confidence threshold, default 0.5
     nms_thresh: (float) nms threshold, default 0.4
 
   @return
     output: (torch.Tensor) detection result with with [# bboxes, 8]
-      8 = [image batch idx, 4 offsets, objectness, max conf, class idx]
+      8 => [image batch idx, 4 offsets, objectness, max conf, class idx]
   """
   batch_size = prediction.size(0)
   conf_mask = (prediction[..., 4] > conf_thresh).float().unsqueeze(2)
@@ -305,7 +313,7 @@ def get_test_input():
 
 
 if __name__ == '__main__':
-  net = YOLOv3('../static/yolov3.cfg', 320)  # fix const
+  net = YOLOv3('../static/yolov3.cfg', 320)
   net.load_weights('../static/yolov3.weights')
   net = net.cuda()
   input = get_test_input().cuda()

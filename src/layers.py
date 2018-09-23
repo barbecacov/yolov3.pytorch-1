@@ -26,15 +26,15 @@ class EmptyLayer(nn.Module):
 
 
 class DetectionLayer(nn.Module):
-  """Detection layer
-
-  @args
-    anchors: (list) list of anchor box sizes tuple
-    num_classes: (int)
-    input_dim: (int)
-  """
+  """Detection layer"""
 
   def __init__(self, anchors, num_classes, input_dim):
+    """
+    @args
+      anchors: (list) list of anchor box sizes tuple
+      num_classes: (int)
+      input_dim: (int)
+    """
     super(DetectionLayer, self).__init__()
     self.anchors = anchors
     self.num_classes = num_classes
@@ -51,14 +51,17 @@ class DetectionLayer(nn.Module):
          bw = pw * exp(tw)
          bh = ph * exp(th)
       4. Softmax
-    
+
     @args
       prediction: (torch.Tensor) detection result feature map, with size [B, 85*3, 13, 13]
-    
+        85 => [4 offsets, objectness score, 80 class score]
+        3 => # anchor boxes pixel-wise
+        13 => grid size in last feature map
+
     @return
       prediction: (torch.Tensor) transformed feature map, with size [B, 13*13*3, 85]
     """
-    batch_size, _, grid_size, _  = prediction.size()
+    batch_size, _, grid_size, _ = prediction.size()
     stride = self.input_dim // grid_size  # no pooling used, stride is the only downsample
     num_attrs = 5 + self.num_classes  # tx, ty, tw, th, p0
     num_anchors = len(self.anchors)
@@ -68,16 +71,16 @@ class DetectionLayer(nn.Module):
     # Re-organize
     # [batch_size, 85*3, 13, 13] => [batch_size, 85*3, 13*13] => [batch_size, 3*13*13, 85]
     prediction = prediction.view(batch_size, num_attrs*num_anchors, grid_size*grid_size)
-    prediction = prediction.transpose(1,2).contiguous()
+    prediction = prediction.transpose(1, 2).contiguous()
     prediction = prediction.view(batch_size, grid_size*grid_size*num_anchors, num_attrs)
 
     # Transform center coordinates
     # x_y_offset = [[0,0]*3, [0,1]*3, [0,2]*3, ..., [12,12]*3]
     grid_len = np.arange(grid_size)
     a, b = np.meshgrid(grid_len, grid_len)
-    x_offset = torch.FloatTensor(a).view(-1,1).cuda()
-    y_offset = torch.FloatTensor(b).view(-1,1).cuda()
-    x_y_offset = torch.cat((x_offset, y_offset), 1).repeat(1,num_anchors).view(-1,2).unsqueeze(0)
+    x_offset = torch.FloatTensor(a).view(-1, 1).cuda()
+    y_offset = torch.FloatTensor(b).view(-1, 1).cuda()
+    x_y_offset = torch.cat((x_offset, y_offset), 1).repeat(1, num_anchors).view(-1, 2).unsqueeze(0)
     prediction[..., 0:2] = F.sigmoid(prediction[..., 0:2]) + x_y_offset[..., 0:2]  # bxy = sigmoid(txy) + cxy
 
     # Log transform
@@ -89,7 +92,6 @@ class DetectionLayer(nn.Module):
     prediction[..., :4] *= stride
 
     # Softmax
-    prediction[...,4:] = F.sigmoid((prediction[..., 4:]))
+    prediction[..., 4:] = F.sigmoid((prediction[..., 4:]))
 
     return prediction
-

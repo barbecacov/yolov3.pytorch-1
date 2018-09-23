@@ -1,14 +1,15 @@
 import os
 import argparse
 import warnings
+from tqdm import tqdm
 from PIL import Image
 opj = os.path.join
 warnings.filterwarnings("ignore")
 
 import config
 from model import YOLOv3, nms
-from utils import prepare_eval_dataset, save_detection
-
+from utils import save_detection
+from dataset import prepare_eval_dataset
 
 
 def parse_arg():
@@ -28,18 +29,17 @@ if __name__ == '__main__':
   assert args.reso % 32 == 0, "Resolution must be interger times of 32"
 
   print("\n==> Loading network ...\n")
-  yolo = YOLOv3(cfg, args.reso)  # TODO: input dim
+  yolo = YOLOv3(cfg, args.reso)
   yolo.load_weights(weights)
   yolo = yolo.cuda()
 
   print("\n==> Loading data ...\n")
   img_datasets, dataloader = prepare_eval_dataset(images, args.reso)
-  print("Test images number:", len(img_datasets))
+  print("# Test images:", len(img_datasets))
 
   print("\n==> Evaluation ...\n")
   yolo.eval()
-  # tbar = tqdm(dataloader, ascii=True)
-  for batch_idx, (inputs, _) in enumerate(dataloader):
+  for batch_idx, (inputs, _) in enumerate(tqdm(dataloader, ncols=80)):
     inputs = inputs.cuda()
     prediction = yolo(inputs)
     detection = nms(prediction, num_classes)

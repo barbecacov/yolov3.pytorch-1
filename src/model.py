@@ -1,9 +1,10 @@
 import torch
 import numpy as np
 import torch.nn as nn
+from torch.autograd import Variable
 
 from layers import MaxPool1s, EmptyLayer, DetectionLayer
-from utils import parse_cfg, get_test_input, IoU, transform_coord
+from utils import parse_cfg, IoU, transform_coord
 
 
 class YOLOv3(nn.Module):
@@ -287,6 +288,20 @@ def nms(prediction, num_classes, conf_thresh=0.5, nms_thresh=0.4):
       output = torch.cat(seq, 1) if output.size(0) == 0 else torch.cat((output, torch.cat(seq, 1)))
 
   return output
+
+
+
+def get_test_input():
+  """Generate test image"""
+  import cv2
+  img = cv2.imread("../assets/test.png")
+  img = cv2.resize(img, (416, 416))          # resize to the input dimension
+  img_ = img[:, :, ::-1].transpose((2, 0, 1))  # BGR -> RGB | H X W C -> C X H X
+  img_ = img_[np.newaxis, :, :, :]/255.0       # Add a channel at 0 (for batch) | Normalise
+  img_ = torch.from_numpy(img_).float()     # Convert to float
+  img_ = Variable(img_)                     # Convert to Variable
+  return img_
+
 
 
 if __name__ == '__main__':

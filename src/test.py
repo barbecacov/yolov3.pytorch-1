@@ -14,7 +14,6 @@ from utils import prepare_eval_dataset, save_detection
 def parse_arg():
   parser = argparse.ArgumentParser(description='YOLO v3 training')
   parser.add_argument('--reso', default=416, type=int, help="Input image resolution of the network")
-  parser.add_argument('--save', action='store_true', help="Save detection result")
   return parser.parse_args()
 
 
@@ -26,9 +25,10 @@ if __name__ == '__main__':
   weights = config.network['weights']  # pretrained weights path
   images = config.test['images_dir']   # eval images directory
   dets = config.test['result_dir']     # detection result directory
+  assert args.reso % 32 == 0, "Resolution must be interger times of 32"
 
   print("\n==> Loading network ...\n")
-  yolo = YOLOv3(cfg, 320)  # TODO: input dim
+  yolo = YOLOv3(cfg, args.reso)  # TODO: input dim
   yolo.load_weights(weights)
   yolo = yolo.cuda()
 
@@ -43,8 +43,7 @@ if __name__ == '__main__':
     inputs = inputs.cuda()
     prediction = yolo(inputs)
     detection = nms(prediction, num_classes)
-    
-    if args.save == True:
-      img_path = img_datasets.get_path(batch_idx)
-      save_detection(img_path, detection.data.cpu().numpy(), dets)
+  
+    img_path = img_datasets.get_path(batch_idx)
+    save_detection(img_path, detection.data.cpu().numpy(), dets, args.reso)
 

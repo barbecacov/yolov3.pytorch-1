@@ -1,9 +1,7 @@
 import os
-import cv2
 import torch
 import numpy as np
 from torchvision import transforms
-from torch.autograd import Variable
 from PIL import Image, ImageFont, ImageDraw, ImageEnhance
 opj = os.path.join
 
@@ -42,33 +40,6 @@ def parse_cfg(cfgfile):
   blocks.append(block)
 
   return blocks
-
-
-def get_test_input():
-  """Generate test image"""
-  img = cv2.imread("../assets/test.png")
-  img = cv2.resize(img, (416, 416))          # resize to the input dimension
-  img_ = img[:, :, ::-1].transpose((2, 0, 1))  # BGR -> RGB | H X W C -> C X H X
-  img_ = img_[np.newaxis, :, :, :]/255.0       # Add a channel at 0 (for batch) | Normalise
-  img_ = torch.from_numpy(img_).float()     # Convert to float
-  img_ = Variable(img_)                     # Convert to Variable
-  return img_
-
-
-def prepare_images(img, input_dim):
-  img = cv2.resize(img, (input_dim, input_dim))
-  img = img[:, :, ::-1].transpose((2, 0, 1)).copy()
-  img = torch.from_numpy(img).float().div(255.0).unsqueeze(0)
-
-  img_w, img_h = img.shape[1], img.shape[0]
-  w, h = input_dim
-  new_w = int(img_w * min(w/img_w, h/img_h))
-  new_h = int(img_h * min(w/img_w, h/img_h))
-  resized_image = cv2.resize(img, (new_w, new_h), interpolation=cv2.INTER_CUBIC)
-  canvas = np.full((input_dim[1], input_dim[0], 3), 128)
-  canvas[(h-new_h)//2:(h-new_h)//2 + new_h, (w-new_w)//2:(w-new_w)//2 + new_w, :] = resized_image
-
-  return canvas
 
 
 def transform_coord(bbox):
@@ -137,7 +108,7 @@ def prepare_eval_dataset(path, reso, batch_size=1):
   return img_datasets, dataloader
 
 
-def save_detection(img_path, detection, dets_dir):
+def save_detection(img_path, detection, dets_dir, reso):
   """
   Draw and save detection result
 
@@ -146,14 +117,15 @@ def save_detection(img_path, detection, dets_dir):
     detection: (np.array) detection result, with size [#bbox, 8]
       8 = [batch_idx, top-left x, top-left y, bottom-right x, bottom-right y, objectness, conf, class idx]
     dets_dir: (str) detection result save path
+    reso: (int) image resolution
   """
   class_names = config.datasets['coco']['class_names']
   img_name = img_path.split('/')[-1]
 
   img = Image.open(img_path)
   w, h = img.size
-  h_ratio = h / 320  # TODO: fix consts
-  w_ratio = w / 320
+  h_ratio = h / reso  # TODO: fix consts
+  w_ratio = w / reso
   h_ratio, w_ratio
   draw = ImageDraw.Draw(img)
 

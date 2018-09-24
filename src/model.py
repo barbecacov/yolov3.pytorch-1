@@ -3,8 +3,8 @@ import numpy as np
 import torch.nn as nn
 from torch.autograd import Variable
 
-from layers import MaxPool1s, EmptyLayer, DetectionLayer
-from utils import parse_cfg, IoU, transform_coord
+from layers import MaxPool1s, EmptyLayer, DetectionLayer, NMSLayer
+from utils import parse_cfg
 
 
 class YOLOv3(nn.Module):
@@ -20,6 +20,7 @@ class YOLOv3(nn.Module):
     self.blocks = parse_cfg(cfgfile)
     self.input_dim = input_dim
     self.module_list = self.build_model(self.blocks)
+    self.nms = NMSLayer()
 
   def build_model(self, blocks):
     """Build YOLOv3 model from building blocks
@@ -121,11 +122,11 @@ class YOLOv3(nn.Module):
 
     @args
       x: (torch.Tensor) input Tensor, with size [batch_size, C, H, W]
-    
+
     @return
-      detections: (torch.Tensor) detection in different scales, with size [batch_size, # bboxes, 85]
+      detections: (torch.Tensor) detection in different scales, with size [batch_size, # bboxes, 5+num_classes]
         # bboxes => 13 * 13 (# grid size in last feature map) * 3 (# anchor boxes) * 3 (# scales)
-        85 => [4 offsets, objectness score, 80 class score]
+        5 => [4 offsets, objectness score]
     """
     detections = torch.Tensor()  # detection results
     outputs = dict()   # output cache for route layer
@@ -161,6 +162,8 @@ class YOLOv3(nn.Module):
         x = self.module_list[i](x)
         detections = x if len(detections.size()) == 1 else torch.cat((detections, x), 1)
         outputs[i] = outputs[i-1]  # skip
+
+    detections = self.nms(detections)
 
     return detections
 
@@ -226,98 +229,3 @@ class YOLOv3(nn.Module):
         conv_weights = conv_weights.view_as(conv.weight.data)
         conv.weight.data.copy_(conv_weights)
         ptr = ptr + num_weights
-
-
-def nms(prediction, num_classes, conf_thresh=0.5, nms_thresh=0.4):
-  """
-  Perform Non-maximum Suppression
-    1. Filter background
-    2. Get prediction with particular class
-    3. Sort by confidence
-    4. Suppress non-max prediction
-
-  @args
-    prediction: (torch.Tensor) prediction feature map, with size [batch_idx, # bboxes, 85]
-      85 => [4 offsets, objectness score, 80 class score]
-    num_class: (int)
-    conf_thresh: (float) fore-ground confidence threshold, default 0.5
-    nms_thresh: (float) nms threshold, default 0.4
-
-  @return
-    output: (torch.Tensor) detection result with with [# bboxes, 8]
-      8 => [image batch idx, 4 offsets, objectness, max conf, class idx]
-  """
-  batch_size = prediction.size(0)
-  conf_mask = (prediction[..., 4] > conf_thresh).float().unsqueeze(2)
-  prediction = prediction * conf_mask
-  prediction[...,:4] = transform_coord(prediction[...,:4])
-  output = torch.Tensor()
-
-  for idx in range(batch_size):
-    # 1. Filter low confidence prediction
-    pred = prediction[idx]
-    max_score, max_idx = torch.max(pred[:, 5:], 1)  # max score in each row
-    max_idx = max_idx.float().unsqueeze(1)
-    max_score = max_score.float().unsqueeze(1)
-    pred = torch.cat((pred[:, :5], max_score, max_idx), 1)
-    non_zero_pred = pred[torch.nonzero(pred[:, 4]).squeeze(), :].view(-1, 7)
-    
-    if non_zero_pred.size(0) == 0: # no objects detected
-      continue
-
-    classes = torch.unique(non_zero_pred[:, -1])
-    for cls in classes:
-      # 2. Get prediction with particular class
-      cls_mask = non_zero_pred * (non_zero_pred[:, -1] == cls).float().unsqueeze(1)
-      cls_idx = torch.nonzero(cls_mask[:, -2]).squeeze()
-      cls_pred = non_zero_pred[cls_idx].view(-1, 7)
-
-      # 3. Sort by confidence
-      conf_sort_idx = torch.sort(cls_pred[:, 4], descending=True)[1]
-      cls_pred = cls_pred[conf_sort_idx]
-
-      # 4. Suppress non-maximum
-      # TODO: avoid duplicate computation
-      for i in range(cls_pred.size(0)):
-        try:
-          ious = IoU(cls_pred[i].unsqueeze(0), cls_pred[i+1:])
-        except ValueError:
-          break
-        except IndexError:
-          break
-
-        iou_mask = (ious < nms_thresh).float().unsqueeze(1)
-        cls_pred[i+1:] *= iou_mask
-        non_zero_idx = torch.nonzero(cls_pred[:, 4]).squeeze()
-        cls_pred = cls_pred[non_zero_idx].view(-1, 7)
-
-      batch_idx = cls_pred.new(cls_pred.size(0), 1).fill_(idx)
-      seq = (batch_idx, cls_pred)
-      output = torch.cat(seq, 1) if output.size(0) == 0 else torch.cat((output, torch.cat(seq, 1)))
-
-  return output
-
-
-
-def get_test_input():
-  """Generate test image"""
-  import cv2
-  img = cv2.imread("../assets/test.png")
-  img = cv2.resize(img, (416, 416))          # resize to the input dimension
-  img_ = img[:, :, ::-1].transpose((2, 0, 1))  # BGR -> RGB | H X W C -> C X H X
-  img_ = img_[np.newaxis, :, :, :]/255.0       # Add a channel at 0 (for batch) | Normalise
-  img_ = torch.from_numpy(img_).float()     # Convert to float
-  img_ = Variable(img_)                     # Convert to Variable
-  return img_
-
-
-
-if __name__ == '__main__':
-  net = YOLOv3('../static/yolov3.cfg', 320)
-  net.load_weights('../static/yolov3.weights')
-  net = net.cuda()
-  input = get_test_input().cuda()
-  prediction = net(input)
-  detection = nms(prediction, 80)
-  # print(detection.size())  # [3,8]
-  np.save('../static/detection.npy', detection.data.cpu().numpy())

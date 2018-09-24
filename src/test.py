@@ -7,9 +7,9 @@ opj = os.path.join
 warnings.filterwarnings("ignore")
 
 import config
-from model import YOLOv3, nms
+from model import YOLOv3
 from utils import save_detection
-from dataset import prepare_eval_dataset
+from dataset import prepare_test_dataset
 
 
 def parse_arg():
@@ -24,8 +24,8 @@ if __name__ == '__main__':
   num_classes = config.datasets['coco']['num_classes']
   cfg = config.network['cfg']          # model cfg file path
   weights = config.network['weights']  # pretrained weights path
-  images = config.test['images_dir']   # eval images directory
-  dets = config.test['result_dir']     # detection result directory
+  images_dir = config.test['images_dir']   # eval images directory
+  result_dir = config.test['result_dir']     # detection result directory
   assert args.reso % 32 == 0, "Resolution must be interger times of 32"
 
   print("\n==> Loading network ...\n")
@@ -34,16 +34,14 @@ if __name__ == '__main__':
   yolo = yolo.cuda()
 
   print("\n==> Loading data ...\n")
-  img_datasets, dataloader = prepare_eval_dataset(images, args.reso)
+  img_datasets, dataloader = prepare_test_dataset(images_dir, args.reso)
   print("# Test images:", len(img_datasets))
 
   print("\n==> Evaluation ...\n")
   yolo.eval()
   for batch_idx, (inputs, _) in enumerate(tqdm(dataloader, ncols=80)):
     inputs = inputs.cuda()
-    prediction = yolo(inputs)
-    detection = nms(prediction, num_classes)
-  
-    img_path = img_datasets.get_path(batch_idx)
-    save_detection(img_path, detection.data.cpu().numpy(), dets, args.reso)
+    detections = yolo(inputs)
 
+    img_path = img_datasets.get_path(batch_idx)
+    save_detection(img_path, detections.data.cpu().numpy(), result_dir, args.reso)

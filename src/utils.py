@@ -6,6 +6,7 @@ opj = os.path.join
 
 import config
 
+
 def parse_cfg(cfgfile):
   """
   Parse a configuration file
@@ -38,6 +39,18 @@ def parse_cfg(cfgfile):
   blocks.append(block)
 
   return blocks
+
+
+def get_test_input():
+  """Generate test image"""
+  import cv2
+  img = cv2.imread("../assets/test.png")
+  img = cv2.resize(img, (416, 416))          # resize to the input dimension
+  img_ = img[:, :, ::-1].transpose((2, 0, 1))  # BGR -> RGB | H X W C -> C X H X
+  img_ = img_[np.newaxis, :, :, :]/255.0       # Add a channel at 0 (for batch) | Normalise
+  img_ = torch.from_numpy(img_).float()     # Convert to float
+  img_ = Variable(img_)                     # Convert to Variable
+  return img_
 
 
 def transform_coord(bbox):
@@ -104,12 +117,12 @@ def save_detection(img_path, detection, dets_dir, reso):
   draw = ImageDraw.Draw(img)
 
   for i in range(detection.shape[0]):
-    bbox = detection[i,1:5]
+    bbox = detection[i, 1:5]
     label = class_names[int(detection[i, -1])]
     conf = '%.2f' % detection[i, -2]
     caption = str(label) + ' ' + str(conf)
     x1, y1, x2, y2 = bbox[0], bbox[1], bbox[2], bbox[3]
-    draw.rectangle(((x1 * w_ratio, y1 * h_ratio,x2 * w_ratio, y2 * h_ratio)), outline='red')
+    draw.rectangle(((x1 * w_ratio, y1 * h_ratio, x2 * w_ratio, y2 * h_ratio)), outline='red')
     draw.text((x1 * w_ratio, y1 * h_ratio), caption, fill='red')
 
   img.save(opj(dets_dir, img_name))

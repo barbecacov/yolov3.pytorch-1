@@ -1,5 +1,7 @@
 # yolov3.pytorch
 
+**[❗ ATTENTION]** 2018/09/25 This repo is under construction, only used for personal backup use now
+
 This repository contains code for a object detector based on [YOLOv3: An Incremental Improvement](https://pjreddie.com/media/files/papers/YOLOv3.pdf), implemented in PyTorch. This repository is based on [ayooshkathuria/pytorch-yolo-v3](https://github.com/ayooshkathuria/pytorch-yolo-v3). I re-implemented it in PyTorch for better readability and re-useablity.
 
 ## 🌲 File Tree
@@ -18,15 +20,15 @@ This repository contains code for a object detector based on [YOLOv3: An Increme
 │   ├── test.py         # evaluation code
 │   ├── train.py        # training code
 │   └── utils.py        # utils function
-└── static            # folder of static file, like .cfg and .weights
+└── lib               # folder of static file, like .cfg and .weights
 ```
 
 ## 🤔 Requirements
 
 * Python 3.6
 * PyTorch **0.4** (v0.4.1 or v0.3 is not supported)
-* PIL 5.2.0
-* Numpy 1.15.1
+* Pillow
+* Numpy
 * CUDA (**CPU is not supported for both training and test!**)
 
 ## 🏹 Train
@@ -57,5 +59,6 @@ To be implemented
 
 ## 🔍 Reference
 
-* [ayooshkathuria/pytorch-yolo-v3](https://github.com/ayooshkathuria/pytorch-yolo-v3) Another PyTorch implmentation of YOLO v3, with only evaluation part
 * [Series: YOLO object detector in PyTorch](https://blog.paperspace.com/tag/series-yolo/) A very nice tutorial of YOLO v3
+* [ayooshkathuria/pytorch-yolo-v3](https://github.com/ayooshkathuria/pytorch-yolo-v3) PyTorch implmentation of YOLO v3, with only evaluation part
+* [eriklindernoren/PyTorch-YOLOv3](https://github.com/eriklindernoren/PyTorch-YOLOv3) PyTorch implmentation of YOLO v3, with both training and evaluation parts

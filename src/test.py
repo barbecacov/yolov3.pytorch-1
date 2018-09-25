@@ -14,7 +14,7 @@ from dataset import prepare_test_dataset
 
 def parse_arg():
   parser = argparse.ArgumentParser(description='YOLO v3 training')
-  parser.add_argument('--reso', default=416, type=int, help="Input image resolution of the network")
+  parser.add_argument('--reso', default=640, type=int, help="Input image resolution of the network")
   return parser.parse_args()
 
 

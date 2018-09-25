@@ -4,6 +4,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 from utils import IoU, transform_coord
 
+
 class MaxPool1s(nn.Module):
   """Max pooling layer with stride 1"""
 
@@ -39,6 +40,7 @@ class DetectionLayer(nn.Module):
     self.anchors = anchors
     self.num_classes = num_classes
     self.input_dim = input_dim
+    self.cache = dict()  # cache for computing loss
 
   def forward(self, x):
     """
@@ -61,6 +63,8 @@ class DetectionLayer(nn.Module):
     @return
       detections: (torch.Tensor) transformed feature map, with size [B, 13*13*3, 5+num_classes]
     """
+    self.cache['raw_detections'] = x  # Cache for loss
+
     batch_size, _, grid_size, _ = x.size()
     stride = self.input_dim // grid_size  # no pooling used, stride is the only downsample
     num_attrs = 5 + self.num_classes  # tx, ty, tw, th, p0
@@ -95,6 +99,18 @@ class DetectionLayer(nn.Module):
 
     return detections
 
+  def loss(self, y_pred, y_true):
+    """
+    Loss function for detection result
+
+    @args
+      y_pred: (torch.Tensor) detection feature map with size [batch_size, 5+num_classes, 3, 13, 13]
+      y_true: (torch.Tensor)
+    """
+    assert 'raw_detections' in self.cache.keys(), "Run forward pass before computing loss"
+    mse_loss = nn.MSELoss().cuda()
+    bce_loss = nn.BCELoss().cuda()
+
 
 class NMSLayer(nn.Module):
   """
@@ -105,7 +121,7 @@ class NMSLayer(nn.Module):
     4. Suppress non-max detection
   """
 
-  def __init__(self, conf_thresh=0.5, nms_thresh=0.4):
+  def __init__(self, conf_thresh=0.8, nms_thresh=0.4):
     """
     @args
       conf_thresh: (float) fore-ground confidence threshold, default 0.5

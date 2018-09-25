@@ -19,6 +19,7 @@ class YOLOv3(nn.Module):
     super(YOLOv3, self).__init__()
     self.blocks = parse_cfg(cfgfile)
     self.input_dim = input_dim
+    self.cache = dict()  # cache for computing loss
     self.module_list = self.build_model(self.blocks)
     self.nms = NMSLayer()
 
@@ -147,18 +148,19 @@ class YOLOv3(nn.Module):
         layers = block['layers']
         layers = [int(a) for a in layers]
 
-        if len(layers) == 1:  # [-3] means output previous 3
+        if len(layers) == 1:  # layers = [-3]: output layer -3
           x = outputs[i + (layers[0])]
 
-        elif len(layers) == 2:  # [-1, 61] means concatnate previous 1 and No.61
+        elif len(layers) == 2:  # layers = [-1, 61]: cat layer -1 and No.61
           layers[1] = layers[1] - i
           map1 = outputs[i + layers[0]]
           map2 = outputs[i + layers[1]]
-          x = torch.cat((map1, map2), 1)  # [BxCxHxW] cat with depth
+          x = torch.cat((map1, map2), 1)  # cat with depth
 
         outputs[i] = x
 
       elif block['type'] == 'yolo':
+        self.cache[i] = x
         x = self.module_list[i](x)
         detections = x if len(detections.size()) == 1 else torch.cat((detections, x), 1)
         outputs[i] = outputs[i-1]  # skip
@@ -166,6 +168,14 @@ class YOLOv3(nn.Module):
     detections = self.nms(detections)
 
     return detections
+
+  def loss(self, y_true):
+    from IPython import embed
+    embed()
+    for i, y_pred in range(self.cache.keys()):
+      block = self.blocks[i]
+      assert block['type'] == 'yolo'
+      loss = self.module_list[i].loss(self.cache[i], y_true)  
 
   def load_weights(self, path):
     """

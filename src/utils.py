@@ -56,6 +56,12 @@ def get_test_input():
 def transform_coord(bbox):
   """
   Transform bbox coordinates
+  |---------|           (x1,y1) *---------|
+  |         |                   |         |
+  |  (x,y)  | h    ===>         |         |
+  |         |                   |         |
+  |_________|                   |_________* (x2,y2)
+       w
 
   @args
     bbox: (torch.Tensor) bbox with size [batch_size, # bboxes, 4]
@@ -71,6 +77,24 @@ def transform_coord(bbox):
   bbox_transformed[..., 2] = (bbox[..., 0] + bbox[..., 2]/2)
   bbox_transformed[..., 3] = (bbox[..., 1] + bbox[..., 3]/2)
   return bbox_transformed
+
+
+def transform_coco_label(targets):
+  """
+  Transform COCO detection label. Official COCO label data format is a list of dict
+  Length of list is batch size, and each dict has keys include 'bbox'
+  We take bbox only and transform label to tensor for loss computation convenience
+
+  @args
+    targets: (list) length = batch size
+  
+  @return
+    targets_tensor: (torch.Tensor) with size [batch_size, 4]
+  """
+  batch_size = targets.size(0)
+  targets_tensor = torch.Tensor(batch_size, )
+  for target in targets:
+    targets_tensor = torch.cat()
 
 
 def IoU(box1, box2):

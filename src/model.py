@@ -161,7 +161,7 @@ class YOLOv3(nn.Module):
         detections = x if len(detections.size()) == 1 else torch.cat((detections, x), 1)
         outputs[i] = outputs[i-1]  # skip
 
-    np.save('../lib/detections.npy', detections)
+    np.save('../lib/detections.npy', detections.data.cpu().numpy())
     detections = self.nms(detections)
 
     return detections

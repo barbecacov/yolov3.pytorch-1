@@ -30,7 +30,7 @@ class DetectionLayer(nn.Module):
   """Detection layer"""
 
   def __init__(self, anchors, num_classes, input_dim):
-    """
+    """Init the model
     @args
       anchors: (list) list of anchor box sizes tuple
       num_classes: (int) # classes
@@ -43,28 +43,23 @@ class DetectionLayer(nn.Module):
     self.cache = dict()  # cache for computing loss
 
   def forward(self, x):
-    """
-    Transform feature map into 2-D tensor. Transformation includes
+    """Transform feature map into 2-D tensor. Transformation includes
       1. Re-organize tensor to make each row correspond to a bbox
       2. Transform center coordinates
-         bx = sigmoid(tx) + cx
-         by = sigmoid(ty) + cy
+        bx = sigmoid(tx) + cx
+        by = sigmoid(ty) + cy
       3. Transform width and height
-         bw = pw * exp(tw)
-         bh = ph * exp(th)
+        bw = pw * exp(tw)
+        bh = ph * exp(th)
       4. Softmax
-
     @args
       x: (torch.Tensor) detection result feature map, with size [B, (5+num_classes)*3, 13, 13]
         5 => [4 offsets, objectness score]
         3 => # anchor boxes pixel-wise
         13 => grid size in last feature map
-
-    @return
+    @returns
       detections: (torch.Tensor) transformed feature map, with size [B, 13*13*3, 5+num_classes]
     """
-    self.cache['raw_detections'] = x  # Cache for loss
-
     batch_size, _, grid_size, _ = x.size()
     stride = self.input_dim // grid_size  # no pooling used, stride is the only downsample
     num_attrs = 5 + self.num_classes  # tx, ty, tw, th, p0
@@ -85,31 +80,35 @@ class DetectionLayer(nn.Module):
     x_offset = torch.FloatTensor(a).view(-1, 1).cuda()
     y_offset = torch.FloatTensor(b).view(-1, 1).cuda()
     x_y_offset = torch.cat((x_offset, y_offset), 1).repeat(1, num_anchors).view(-1, 2).unsqueeze(0)
-    detections[..., 0:2] = F.sigmoid(x[..., 0:2]) + x_y_offset[..., 0:2]  # bxy = sigmoid(txy) + cxy
+    detections[..., 0:2] = torch.sigmoid(x[..., 0:2]) + x_y_offset[..., 0:2]  # bxy = sigmoid(txy) + cxy
 
     # Log transform
     # anchors: [3,2] => [13*13*3, 2]
     anchors = torch.FloatTensor(anchors).cuda()
     anchors = anchors.repeat(grid_size*grid_size, 1).unsqueeze(0)
-    detections[..., 2:4] = torch.exp(x[..., 2:4])*anchors  # bwh = pwh * exp(twh)
+    detections[..., 2:4] = torch.exp(x[..., 2:4]) * anchors  # bwh = pwh * exp(twh)
     detections[..., :4] *= stride
 
     # Softmax
-    detections[..., 4:] = F.sigmoid((x[..., 4:]))
+    detections[..., 4:] = torch.sigmoid((x[..., 4:]))
 
     return detections
 
   def loss(self, y_pred, y_true):
-    """
-    Loss function for detection result
-
+    """Loss function for detection result
     @args
-      y_pred: (torch.Tensor) detection feature map with size [batch_size, 5+num_classes, 3, 13, 13]
-      y_true: (torch.Tensor)
+      y_pred: (torch.Tensor) predicted feature map with size [batch_size, (5+num_classes)*3, 13, 13]
+      y_true: (torch.Tensor) annotations with size [batch_size, 15, 5]
+        15 => fixed size # bboxes
+        5 => 4 offsets + 1 label
     """
-    assert 'raw_detections' in self.cache.keys(), "Run forward pass before computing loss"
-    mse_loss = nn.MSELoss().cuda()
-    bce_loss = nn.BCELoss().cuda()
+    from IPython import embed
+    embed()
+    batch_size, _, grid_size, _ = y_pred.size()
+    stride = self.input_dim // grid_size
+    num_attrs = 5 + self.num_classes
+    num_anchors = len(self.anchors)
+    anchors = [(a[0]/stride, a[1]/stride) for a in self.anchors]
 
 
 class NMSLayer(nn.Module):
@@ -122,7 +121,7 @@ class NMSLayer(nn.Module):
   """
 
   def __init__(self, conf_thresh=0.8, nms_thresh=0.4):
-    """
+    """Init layer
     @args
       conf_thresh: (float) fore-ground confidence threshold, default 0.5
       nms_thresh: (float) nms threshold, default 0.4
@@ -132,12 +131,11 @@ class NMSLayer(nn.Module):
     self.nms_thresh = nms_thresh
 
   def forward(self, x):
-    """
+    """Forward pass
     @args
       x: (torch.Tensor) detection feature map, with size [batch_idx, # bboxes, 5+num_classes]
         5 => [4 offsets, objectness score]
-
-    @return
+    @returns
       detections: (torch.Tensor) detection result with with [# bboxes, 8]
         8 => [image batch idx, 4 offsets, objectness, max conf, class idx]
     """

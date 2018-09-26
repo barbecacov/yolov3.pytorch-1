@@ -11,7 +11,7 @@ class YOLOv3(nn.Module):
   """YOLO v3 model"""
 
   def __init__(self, cfgfile, input_dim):
-    """
+    """Init the model
     @args
       cfgfile: (str) path to yolo v3 config file
       input_dim: (int) 
@@ -27,8 +27,7 @@ class YOLOv3(nn.Module):
     """Build YOLOv3 model from building blocks
     @args
       blocks: (list) list of building blocks description
-
-    @return
+    @returns
       module_list: (nn.ModuleList) module list of neural network
     """
     module_list = nn.ModuleList()
@@ -118,13 +117,10 @@ class YOLOv3(nn.Module):
     return module_list
 
   def forward(self, x):
-    """
-    Forwarad pass of YOLO v3
-
+    """Forwarad pass of YOLO v3
     @args
       x: (torch.Tensor) input Tensor, with size [batch_size, C, H, W]
-
-    @return
+    @returns
       detections: (torch.Tensor) detection in different scales, with size [batch_size, # bboxes, 5+num_classes]
         # bboxes => 13 * 13 (# grid size in last feature map) * 3 (# anchor boxes) * 3 (# scales)
         5 => [4 offsets, objectness score]
@@ -160,22 +156,31 @@ class YOLOv3(nn.Module):
         outputs[i] = x
 
       elif block['type'] == 'yolo':
-        self.cache[i] = x
         x = self.module_list[i](x)
+        self.cache[i] = x  # cache for loss
         detections = x if len(detections.size()) == 1 else torch.cat((detections, x), 1)
         outputs[i] = outputs[i-1]  # skip
 
+    np.save('../lib/detections.npy', detections)
     detections = self.nms(detections)
 
     return detections
 
   def loss(self, y_true):
-    from IPython import embed
-    embed()
-    for i, y_pred in range(self.cache.keys()):
+    """Compute loss
+    @args
+      y_true: (torch.Tensor) annotations with size [batch_size, 15, 5]
+        15 => number of bboxes (fixed to 15)
+        5 => [x1, x2, y1, y2] (without scaling) + label
+        (x1,y1) *————————|
+                |        |
+                |        |
+                |________* (x2,y2)
+    """
+    for i, y_pred in self.cache.items():
       block = self.blocks[i]
       assert block['type'] == 'yolo'
-      loss = self.module_list[i].loss(self.cache[i], y_true)  
+      loss = self.module_list[i][0].loss(y_pred, y_true)
 
   def load_weights(self, path):
     """

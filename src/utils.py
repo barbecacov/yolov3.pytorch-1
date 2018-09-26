@@ -8,12 +8,9 @@ import config
 
 
 def parse_cfg(cfgfile):
-  """
-  Parse a configuration file
-
+  """Parse a configuration file
   @args
     cfgfile: (str) path to config file
-
   @returns
     blocks: (list) list of blocks, with each block describes a block in the NN to be built
   """
@@ -54,20 +51,17 @@ def get_test_input():
 
 
 def transform_coord(bbox):
-  """
-  Transform bbox coordinates
-  |---------|           (x1,y1) *---------|
-  |         |                   |         |
-  |  (x,y)  | h    ===>         |         |
-  |         |                   |         |
-  |_________|                   |_________* (x2,y2)
-       w
-
+  """Transform bbox coordinates
+    |---------|           (x1,y1) *---------|
+    |         |                   |         |
+    |  (x,y)  | h    ===>         |         |
+    |         |                   |         |
+    |_________|                   |_________* (x2,y2)
+        w
   @args
     bbox: (torch.Tensor) bbox with size [batch_size, # bboxes, 4]
       4 = [center x, center y, height, width] 
-
-  @return
+  @returns
     bbox_transformed: (torch.Tensor) transformed bbox with size [batch_size, # bboxes, 4]
       4 = [top-left x, top-left y, right-bottom x, right-bottom y]
   """
@@ -80,15 +74,12 @@ def transform_coord(bbox):
 
 
 def transform_coco_label(targets):
-  """
-  Transform COCO detection label. Official COCO label data format is a list of dict
-  Length of list is batch size, and each dict has keys include 'bbox'
-  We take bbox only and transform label to tensor for loss computation convenience
-
+  """Transform COCO detection label. Official COCO label data format is a list of dict
+    Length of list is batch size, and each dict has keys include 'bbox'
+    We take bbox only and transform label to tensor for loss computation convenience
   @args
     targets: (list) length = batch size
-  
-  @return
+  @returns
     targets_tensor: (torch.Tensor) with size [batch_size, 4]
   """
   batch_size = targets.size(0)
@@ -98,9 +89,7 @@ def transform_coco_label(targets):
 
 
 def IoU(box1, box2):
-  """
-  Compute IoU between box1 and box2
-
+  """Compute IoU between box1 and box2
   @args
     box: (torch.Tensor) bboxes with size [# bboxes, 4]
   """
@@ -120,9 +109,7 @@ def IoU(box1, box2):
 
 
 def save_detection(img_path, detection, dets_dir, reso):
-  """
-  Draw and save detection result
-
+  """Draw and save detection result
   @args
     img_path: (str) path to image
     detection: (np.array) detection result, with size [#bbox, 8]

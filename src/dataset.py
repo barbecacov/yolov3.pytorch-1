@@ -2,14 +2,16 @@ import os
 import time
 import torch
 import pickle
-import xml.etree.ElementTree
+import numpy as np
 from tqdm import tqdm
 from PIL import Image
+from xml.etree import ElementTree
 from torchvision import transforms
 from torch.utils.data.dataloader import default_collate
 opj = os.path.join
 
 import config
+
 
 class TestDataset(torch.utils.data.dataset.Dataset):
   """Dataset for evaluataion"""
@@ -56,6 +58,9 @@ class SixdDataset(torch.utils.data.dataset.Dataset):
       root: (str) path to dataset
       listname: (str) image list filename
       transform: (torchvision.transforms)
+    @params
+      self.img_names: (list) list of image filename
+      self.annos: (list) list of image annotations, each with size [#bbox, 5]
     """
     self.transform = transform
     self.root = root
@@ -72,8 +77,8 @@ class SixdDataset(torch.utils.data.dataset.Dataset):
       print("Successfully load annotations from disk")
     else:
       start_time = time.time()
-
       print("Get image names")
+
       self.img_names = []
       with open(self.filelist) as f:
         data = f.readlines()
@@ -85,17 +90,14 @@ class SixdDataset(torch.utils.data.dataset.Dataset):
       for img_name in tqdm(self.img_names, ncols=80):
         img_idx = img_name.split('_')[0]
         anno_path = opj(self.anno_dir, img_idx + '.xml')
-        root = xml.etree.ElementTree.parse(anno_path).getroot()
+        root = ElementTree.parse(anno_path).getroot()
         objects = root.findall('object')
-        img_anno = []
-        for o in objects:
-          label = {}
-          label['name'] = int(o.find('name').text)
-          label['bbox'] = []
+        img_anno = np.ndarray((len(objects), 5))
+        for i, o in enumerate(objects):
           bndbox = o.find('bndbox')
-          for child in bndbox:
-            label['bbox'].append(int(child.text))
-          img_anno.append(label)
+          for j, child in enumerate(bndbox):         # bbox
+            img_anno[i, j] = int(child.text)
+          img_anno[i, 4] = int(o.find('name').text)  # label
         self.annos.append(img_anno)
 
       with open(opj(config.ROOT_DIR, 'lib', libname), 'wb') as f:
@@ -113,36 +115,20 @@ class SixdDataset(torch.utils.data.dataset.Dataset):
       index: (int) item index
     @returns
       img_tensor: (torch.Tensor) Tensor with size [C, H, W]
-      img_anno: (list) corresponding annotation
+      img_anno: (torch.Tensor) corresponding annotation with size [15, 5]
       img_name: (str) image name
     """
     img_name = self.img_names[index]
     img = Image.open(opj(self.img_dir, img_name))
     img_tensor = self.transform(img)
-    img_anno = self.annos[index]
-    return img_name, img_tensor, BboxList(img_anno)
+    num_bbox = self.annos[index].shape[0]
+    assert num_bbox < 15, "# bboxes exceed 15!"
+    img_anno = torch.zeros(15, 5)  # fixed size padding
+    img_anno[:num_bbox, :] = torch.Tensor(self.annos[index])
+    return img_name, img_tensor, img_anno
 
   def __len__(self):
     return len(self.img_names)
-
-  @staticmethod
-  def collate_fn(batch):
-    """Collate function for SixdDataset, used in DataLoader
-    @args
-      batch: (list) list of item from self.__getitem__()
-    @returns
-      target_batch: (tuple) (names, tensor, bboxes)
-        names: (list) image names
-        tensor: (torch.Tensor) with size [batch_size, C, H, W]
-        bboxes: (list) length = batch_size, each represents one bbox
-    """
-    target_batch = default_collate(batch)
-    bboxes = []
-    for item in batch:
-      bbox = item[2]
-      bboxes.append(bbox)
-    target_batch[2] = bboxes
-    return target_batch
 
 
 def prepare_test_dataset(path, reso, batch_size=1):
@@ -186,6 +172,6 @@ def prepare_train_dataset(name, reso, batch_size=32):
   train_root = config.datasets[name]['train_root']
 
   img_datasets = SixdDataset(train_root, 'train.txt', transform=transform)
-  dataloder = torch.utils.data.DataLoader(img_datasets, batch_size=batch_size, shuffle=True, collate_fn=SixdDataset.collate_fn)
+  dataloder = torch.utils.data.DataLoader(img_datasets, batch_size=batch_size, num_workers=8, shuffle=True)
 
   return img_datasets, dataloder

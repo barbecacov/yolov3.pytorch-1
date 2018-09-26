@@ -22,10 +22,10 @@ if __name__ == '__main__':
   print("\n==> Parsing arguments ...\n")
   args = parse_arg()
   num_classes = config.datasets['coco']['num_classes']
-  cfg = config.network['cfg']          # model cfg file path
-  weights = config.network['weights']  # pretrained weights path
+  cfg = config.network['cfg']              # model cfg file path
+  weights = config.network['weights']      # pretrained weights path
   images_dir = config.test['images_dir']   # eval images directory
-  result_dir = config.test['result_dir']     # detection result directory
+  result_dir = config.test['result_dir']   # detection result directory
   assert args.reso % 32 == 0, "Resolution must be interger times of 32"
 
   print("\n==> Loading network ...\n")

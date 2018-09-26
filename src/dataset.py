@@ -55,19 +55,19 @@ class CocoDataset(CocoDetection):
     coco = self.coco
     img_id = self.ids[index]
     ann_ids = coco.getAnnIds(imgIds=img_id)
+    path = coco.loadImgs(img_id)[0]['file_name']
+    img = Image.open(os.path.join(self.root, path)).convert('RGB')
+    w, h = img.size
     target = coco.loadAnns(ann_ids)
     assert len(target) < 50, "# bboxes exceed 50"
     target_tensor = torch.zeros(50, 5)
     for i in range(len(target)):
       target_tensor[i, :4] = torch.Tensor(target[i]['bbox'])
-      target_tensor[i, 4] = float(target[i]['category_id'])
-    path = coco.loadImgs(img_id)[0]['file_name']
-    img = Image.open(os.path.join(self.root, path)).convert('RGB')
-    w, h = img.size
-    target_tensor[i, 0] /= w
-    target_tensor[i, 2] /= w
-    target_tensor[i, 1] /= h
-    target_tensor[i, 3] /= h
+      target_tensor[i, 4] = float(target[i]['category_id']) + 1
+      target_tensor[i, 0] /= w
+      target_tensor[i, 2] /= w
+      target_tensor[i, 1] /= h
+      target_tensor[i, 3] /= h
     if self.transform is not None:
         img = self.transform(img)
     return path, img, target_tensor

@@ -91,12 +91,16 @@ class SixdDataset(torch.utils.data.dataset.Dataset):
         img_idx = img_name.split('_')[0]
         anno_path = opj(self.anno_dir, img_idx + '.xml')
         root = ElementTree.parse(anno_path).getroot()
+        width = int(root.find('size').find('width').text)
+        height = int(root.find('size').find('height').text)
         objects = root.findall('object')
         img_anno = np.ndarray((len(objects), 5))
         for i, o in enumerate(objects):
           bndbox = o.find('bndbox')
           for j, child in enumerate(bndbox):         # bbox
             img_anno[i, j] = int(child.text)
+          img_anno[i, :2] /= width  # scale to (0,1)
+          img_anno[i, 2:] /= height  # scale to (0,1)
           img_anno[i, 4] = int(o.find('name').text)  # label
         self.annos.append(img_anno)
 

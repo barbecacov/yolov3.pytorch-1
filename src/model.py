@@ -120,10 +120,13 @@ class YOLOv3(nn.Module):
     """Forwarad pass of YOLO v3
     @args
       x: (torch.Tensor) input Tensor, with size [batch_size, C, H, W]
+    @params
+      self.cache: (dict) cache of raw detection result, each with size [batch_size, # bboxes, 5+num_classes]
+        5 => [xc, yc, w, h, objectness score]
     @returns
       detections: (torch.Tensor) detection in different scales, with size [batch_size, # bboxes, 5+num_classes]
-        # bboxes => 13 * 13 (# grid size in last feature map) * 3 (# anchor boxes) * 3 (# scales)
-        5 => [4 offsets, objectness score]
+        # bboxes => grid_size (13*13 + 26*26 + 52*52) * num_ancors 3 = 10647
+        5 => [x1, y1, x2, y2, objectness score]
     """
     detections = torch.Tensor()  # detection results
     outputs = dict()   # output cache for route layer
@@ -161,7 +164,6 @@ class YOLOv3(nn.Module):
         detections = x if len(detections.size()) == 1 else torch.cat((detections, x), 1)
         outputs[i] = outputs[i-1]  # skip
 
-    np.save('../lib/detections.npy', detections.data.cpu().numpy())
     detections = self.nms(detections)
 
     return detections
@@ -169,13 +171,18 @@ class YOLOv3(nn.Module):
   def loss(self, y_true):
     """Compute loss
     @args
-      y_true: (torch.Tensor) annotations with size [batch_size, 15, 5]
+      y_true: (torch.Tensor) annotations with size [B, 15, 5]
         15 => number of bboxes (fixed to 15)
-        5 => [x1, x2, y1, y2] (without scaling) + label
-        (x1,y1) *————————|
-                |        |
-                |        |
-                |________* (x2,y2)
+        5 => [x1, y1, x2, y2] scale to (0,1) + label
+        (x1,y1) *————————|                     |——-—w————|
+                |        |                     |         |
+                |        |                     | (xc,yc) h
+                |        |                     |         |
+                |________* (x2,y2)             |_________|
+    @params
+      y_pred: (torch.Tensor) raw detections with size [B, (5+num_classes)*3, grid_size, grid_size]
+        3 => # anchors
+        5 => [tx, ty, tw, th, objectness]
     """
     for i, y_pred in self.cache.items():
       block = self.blocks[i]

@@ -7,6 +7,7 @@ from tqdm import tqdm
 from PIL import Image
 from xml.etree import ElementTree
 from torchvision import transforms
+from torchvision.datasets import CocoDetection
 from torch.utils.data.dataloader import default_collate
 opj = os.path.join
 
@@ -49,6 +50,29 @@ class TestDataset(torch.utils.data.dataset.Dataset):
     return len(self.imgs_list)
 
 
+class CocoDataset(CocoDetection):
+  def __getitem__(self, index):
+    coco = self.coco
+    img_id = self.ids[index]
+    ann_ids = coco.getAnnIds(imgIds=img_id)
+    target = coco.loadAnns(ann_ids)
+    assert len(target) < 50, "# bboxes exceed 50"
+    target_tensor = torch.zeros(50, 5)
+    for i in range(len(target)):
+      target_tensor[i, :4] = torch.Tensor(target[i]['bbox'])
+      target_tensor[i, 4] = float(target[i]['category_id'])
+    path = coco.loadImgs(img_id)[0]['file_name']
+    img = Image.open(os.path.join(self.root, path)).convert('RGB')
+    w, h = img.size
+    target_tensor[i, 0] /= w
+    target_tensor[i, 2] /= w
+    target_tensor[i, 1] /= h
+    target_tensor[i, 3] /= h
+    if self.transform is not None:
+        img = self.transform(img)
+    return path, img, target_tensor
+
+
 class SixdDataset(torch.utils.data.dataset.Dataset):
   """Image dataset for SIXD"""
 
@@ -74,10 +98,10 @@ class SixdDataset(torch.utils.data.dataset.Dataset):
         obj = pickle.load(f)
       self.img_names = obj['img_names']
       self.annos = obj['annos']
-      print("Successfully load annotations from disk")
+      print("successfully load annotations from disk")
     else:
       start_time = time.time()
-      print("Get image names")
+      print("retriving image names")
 
       self.img_names = []
       with open(self.filelist) as f:
@@ -85,7 +109,7 @@ class SixdDataset(torch.utils.data.dataset.Dataset):
         for line in data:
           self.img_names.append(line.split(' ')[0])
 
-      print("Parsing annotations")
+      print("parsing annotations")
       self.annos = []
       for img_name in tqdm(self.img_names, ncols=80):
         img_idx = img_name.split('_')[0]
@@ -95,13 +119,22 @@ class SixdDataset(torch.utils.data.dataset.Dataset):
         height = int(root.find('size').find('height').text)
         objects = root.findall('object')
         img_anno = np.ndarray((len(objects), 5))
+        
         for i, o in enumerate(objects):
           bndbox = o.find('bndbox')
+          
           for j, child in enumerate(bndbox):         # bbox
             img_anno[i, j] = int(child.text)
           img_anno[i, :2] /= width  # scale to (0,1)
           img_anno[i, 2:] /= height  # scale to (0,1)
+          
+          # x1, x2, y1, y2  => x1, y1, x2, y2
+          temp = img_anno[i, 1]
+          img_anno[i, 1] = img_anno[i, 2]
+          img_anno[i, 2] = temp
+
           img_anno[i, 4] = int(o.find('name').text)  # label
+
         self.annos.append(img_anno)
 
       with open(opj(config.ROOT_DIR, 'lib', libname), 'wb') as f:
@@ -110,8 +143,8 @@ class SixdDataset(torch.utils.data.dataset.Dataset):
             'annos': self.annos
         }, f)
 
-      print("Done (t = %.2f)" % (time.time() - start_time))
-      print("Save annotations to disk")
+      print("done (t = %.2f)" % (time.time() - start_time))
+      print("save annotations to disk")
 
   def __getitem__(self, index):
     """Return dataset item
@@ -175,7 +208,15 @@ def prepare_train_dataset(name, reso, batch_size=32):
 
   train_root = config.datasets[name]['train_root']
 
-  img_datasets = SixdDataset(train_root, 'train.txt', transform=transform)
-  dataloder = torch.utils.data.DataLoader(img_datasets, batch_size=batch_size, num_workers=8, shuffle=True)
+  if name == 'coco':
+    img_datasets = CocoDataset(
+      root=opj(train_root, 'train2017'),
+      annFile=opj(train_root, 'annotations/instances_train2017.json'),
+      transform=transform
+    )
+  else:
+    img_datasets = SixdDataset(train_root, 'train.txt', transform=transform)
+
+  dataloder = torch.utils.data.DataLoader(img_datasets, batch_size=batch_size, shuffle=True)
 
   return img_datasets, dataloder

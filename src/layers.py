@@ -54,7 +54,7 @@ class DetectionLayer(nn.Module):
       4. Softmax
     @args
       x: (torch.Tensor) detection result feature map, with size [B, (5+num_classes)*3, 13, 13]
-        5 => [4 offsets, objectness score]
+        5 => [4 offsets (xc, yc, w, h), objectness score]
         3 => # anchor boxes pixel-wise
         13 => grid size in last feature map
     @returns
@@ -96,19 +96,36 @@ class DetectionLayer(nn.Module):
 
   def loss(self, y_pred, y_true):
     """Loss function for detection result
+      1. Re-organize y_pred
+      2. 
     @args
-      y_pred: (torch.Tensor) predicted feature map with size [batch_size, (5+num_classes)*3, 13, 13]
-      y_true: (torch.Tensor) annotations with size [batch_size, 15, 5]
+      y_pred: (torch.Tensor) predicted feature map with size [B, grid_size^2*3, 5+num_classes]
+        3 => # anchors
+        5 => [tx, ty, tw, th] + objectness
+      y_true: (torch.Tensor) annotations with size [B, 15, 5]
         15 => fixed size # bboxes
-        5 => 4 offsets + 1 label
+        5 => [x1, y1, x2, y2] scaled to (0,1) + 1 label
     """
-    from IPython import embed
-    embed()
-    batch_size, _, grid_size, _ = y_pred.size()
-    stride = self.input_dim // grid_size
-    num_attrs = 5 + self.num_classes
+    # 1. Re-organize y_pred
+    # [B, grid size^2*3, 5+num_classes] => [B, grid size, grid_size, 3, 5+num_classes]
+    batch_size, num_bboxes, _ = y_pred.size()
     num_anchors = len(self.anchors)
-    anchors = [(a[0]/stride, a[1]/stride) for a in self.anchors]
+    num_attrs = 5 + self.num_classes
+    grid_size = int(np.sqrt(num_bboxes / num_anchors))
+    y_pred = y_pred.view(batch_size, grid_size, grid_size, num_anchors, num_attrs).contiguous()
+
+    # 2. Object mask
+    for i in range(batch_size):
+      y_pred_batch = y_pred[i]
+      y_true_batch = y_true[i]
+      gt_bboxes = y_true_batch[:, :4]
+      gt_labels = y_true_batch[:, 4].int()
+      gt_bboxes = (gt_bboxes * grid_size).int()  # bbox's values are (0,1)
+      pred_bboxes = y_pred_batch[..., 0:4]
+      pred_bboxes[..., :4] = transform_coord(pred_bboxes[..., :4])
+
+      from IPython import embed
+      embed()
 
 
 class NMSLayer(nn.Module):
@@ -134,7 +151,7 @@ class NMSLayer(nn.Module):
     """Forward pass
     @args
       x: (torch.Tensor) detection feature map, with size [batch_idx, # bboxes, 5+num_classes]
-        5 => [4 offsets, objectness score]
+        5 => [x, y, w, h, objectness score]
     @returns
       detections: (torch.Tensor) detection result with with [# bboxes, 8]
         8 => [image batch idx, 4 offsets, objectness, max conf, class idx]

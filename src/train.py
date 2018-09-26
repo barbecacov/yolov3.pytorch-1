@@ -16,7 +16,7 @@ def parse_arg():
   parser.add_argument('--lr', default=1e-3, type=float, help="Learning rate")
   parser.add_argument('--batch_size', default=4, type=int)
   parser.add_argument('--start_epoch', default=0, type=int)
-  parser.add_argument('--dataset', default='tejani', choices=['tejani'], type=str, help="Dataset name")
+  parser.add_argument('--dataset', default='coco', choices=['tejani', 'coco'], type=str, help="Dataset name")
   parser.add_argument('-r', action='store_true', help="Resume from checkpoint")
   return parser.parse_args()
 
@@ -27,7 +27,7 @@ def train(epoch, trainloader, yolo, lr):
 
   @args
     epoch: (int) training epoch
-    trainloader: (Dataloader) train data loader
+    trainloader: (Dataloader) train data loader 
     yolo: (nn.Module) YOLOv3 model
     lr: (float) learning rate
   """
@@ -47,6 +47,7 @@ if __name__ == '__main__':
   print("\n==> Parsing arguments ...\n")
   args = parse_arg()
   cfg = config.network[args.dataset]['cfg']
+  weights = config.network[args.dataset]['weights']
   for arg in vars(args):
     print(arg, '=', getattr(args, arg))
 
@@ -56,6 +57,7 @@ if __name__ == '__main__':
 
   print("\n==> Loading network ...\n")
   yolo = YOLOv3(cfg, args.reso).cuda()
+  yolo.load_weights(weights)
 
   print("\n==> Training ...\n")
   yolo.train()

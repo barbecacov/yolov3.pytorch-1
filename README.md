@@ -1,6 +1,6 @@
 # yolov3.pytorch
 
-**[❗ ATTENTION]** 2018/09/25 This repo is under construction, only used for personal backup use now
+**❗ ATTENTION** 2018/09/25 This repo is under construction, only used for personal backup use now
 
 This repository contains code for a object detector based on [YOLOv3: An Incremental Improvement](https://pjreddie.com/media/files/papers/YOLOv3.pdf), implemented in PyTorch. This repository is based on [ayooshkathuria/pytorch-yolo-v3](https://github.com/ayooshkathuria/pytorch-yolo-v3). I re-implemented it in PyTorch for better readability and re-useablity.
 
@@ -39,7 +39,7 @@ To be implemented
 
 ### How to run this code
 
-1. Download pretrained YOLO v3 weights [here](https://pjreddie.com/media/files/yolov3.weights) and move it to `static/yolov3.weights`
+1. Download pretrained YOLO v3 weights [here](https://pjreddie.com/media/files/yolov3.weights) and move it to `lib/yolov3.weights`
 2. Run `python test.py`
 3. You can sepcify detection images directory and detection results directory in `config.py`
 

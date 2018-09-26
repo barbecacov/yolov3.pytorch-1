@@ -25,6 +25,6 @@ network = {
 }
 
 test = {
-    'images_dir': opj(ROOT_DIR, 'assets/imgs'),
-    'result_dir': opj(ROOT_DIR, 'assets/dets')
+    'images_dir': opj(ROOT_DIR, 'assets/test_imgs'),
+    'result_dir': opj(ROOT_DIR, 'assets/test_dets')
 }

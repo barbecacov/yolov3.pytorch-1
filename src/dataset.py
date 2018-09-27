@@ -122,18 +122,21 @@ class SixdDataset(torch.utils.data.dataset.Dataset):
         
         for i, o in enumerate(objects):
           bndbox = o.find('bndbox')
-          
           for j, child in enumerate(bndbox):         # bbox
             img_anno[i, j] = int(child.text)
           img_anno[i, :2] /= width  # scale to (0,1)
           img_anno[i, 2:] /= height  # scale to (0,1)
-          
-          # x1, x2, y1, y2  => x1, y1, x2, y2
-          temp = img_anno[i, 1]
-          img_anno[i, 1] = img_anno[i, 2]
-          img_anno[i, 2] = temp
-
           img_anno[i, 4] = int(o.find('name').text)  # label
+
+        # x1, x2, y1, y2  => xc, yc, w, h
+        xc = (img_anno[:, 0] + img_anno[:, 1]) / 2
+        yc = (img_anno[:, 2] + img_anno[:, 3]) / 2
+        w = img_anno[:, 1] - img_anno[:, 0]
+        h = img_anno[:, 3] - img_anno[:, 2]
+        img_anno[:, 0] = xc
+        img_anno[:, 1] = yc
+        img_anno[:, 2] = w
+        img_anno[:, 3] = h
 
         self.annos.append(img_anno)
 
@@ -217,6 +220,6 @@ def prepare_train_dataset(name, reso, batch_size=32):
   else:
     img_datasets = SixdDataset(train_root, 'train.txt', transform=transform)
 
-  dataloder = torch.utils.data.DataLoader(img_datasets, batch_size=batch_size, shuffle=True)
+  dataloder = torch.utils.data.DataLoader(img_datasets, batch_size=batch_size, num_workers=4, shuffle=True)
 
   return img_datasets, dataloder

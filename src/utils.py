@@ -1,5 +1,6 @@
 import os
 import torch
+import datetime
 import numpy as np
 from PIL import Image, ImageFont, ImageDraw, ImageEnhance
 opj = os.path.join
@@ -117,3 +118,25 @@ def save_detection(img_path, detection, dets_dir, reso):
     draw.text((x1 * w_ratio, y1 * h_ratio), caption, fill='red')
 
   img.save(opj(dets_dir, img_name))
+
+
+def get_current_time():
+  """Get current datetime
+
+  @returns
+    time: (str) time in format "dd-hh-mm"
+  """
+  time = str(datetime.datetime.now())
+  time = time.split('-')[-1].split('.')[0]
+  time = time.replace(' ', ':')
+  day, hour, minute, _ = time.split(':')
+  if day[-1] == '1':
+    day += 'st'
+  elif day[-1] == '2':
+    day += 'nd'
+  elif day[-1] == '3':
+    day += 'rd'
+  else:
+    day += 'th'
+  time = day + '-' + hour + ':' + minute
+  return str(time)

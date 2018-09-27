@@ -3,7 +3,7 @@ import json
 opj = os.path.join
 
 ROOT_DIR = '/media/data_1/home/penggao/penggao/detection/yolo3.pytorch'
-
+LOG_DIR = opj(ROOT_DIR, './log')
 
 def parse_names(path):
   """Parse names .json"""

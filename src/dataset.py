@@ -63,7 +63,7 @@ class CocoDataset(CocoDetection):
     target_tensor = torch.zeros(50, 5)
     for i in range(len(target)):
       target_tensor[i, :4] = torch.Tensor(target[i]['bbox'])
-      target_tensor[i, 4] = float(target[i]['category_id']) + 1
+      target_tensor[i, 4] = config.datasets['coco']['category_id_mapping'][int(target[i]['category_id'])]
       target_tensor[i, 0] /= w
       target_tensor[i, 2] /= w
       target_tensor[i, 1] /= h

@@ -33,7 +33,7 @@ This repository contains code for a object detector based on [YOLOv3: An Increme
 
 ## Train 🏹
 
-To be implemented
+
 
 ## Evaluation 🎯
 
@@ -57,7 +57,10 @@ To be implemented
 
 - [x] Evaluation on image
 - [ ] Training on user specified datasets
-- [ ] Metrics on evaluation result
+  - [x] Loss function implementation
+  - [x] Visualize training process
+  - [ ] Tutorials of training from scratch
+  - [ ] Metrics on evaluation result
 
 ### Not important
 

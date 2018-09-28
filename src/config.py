@@ -2,8 +2,8 @@ import os
 import json
 opj = os.path.join
 
-ROOT_DIR = '/media/data_1/home/penggao/penggao/detection/yolo3.pytorch'
-LOG_DIR = opj(ROOT_DIR, './log')
+ROOT = '/media/data_1/home/penggao/penggao/detection/yolo3.pytorch'
+LOG_ROOT = opj(ROOT, 'log')
 
 def parse_names(path):
   """Parse names .json"""
@@ -34,15 +34,15 @@ datasets = {
 
 network = {
     'tejani': {
-        'cfg': opj(ROOT_DIR, 'lib/yolov3-tejani.cfg')
+        'cfg': opj(ROOT, 'lib/yolov3-tejani.cfg')
     },
     'coco': {
-        'cfg': opj(ROOT_DIR, 'lib/yolov3-coco.cfg'),
-        'weights': opj(ROOT_DIR, 'lib/yolov3-coco.weights')
+        'cfg': opj(ROOT, 'lib/yolov3-coco.cfg'),
+        'weights': opj(ROOT, 'lib/yolov3-coco.weights')
     }
 }
 
 test = {
-    'images_dir': opj(ROOT_DIR, 'assets/test_imgs'),
-    'result_dir': opj(ROOT_DIR, 'assets/test_dets')
+    'images_dir': opj(ROOT, 'assets/test_imgs'),
+    'result_dir': opj(ROOT, 'assets/test_dets')
 }

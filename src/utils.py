@@ -10,10 +10,14 @@ import config
 
 def parse_cfg(cfgfile):
   """Parse a configuration file
-  @args
-    cfgfile: (str) path to config file
-  @returns
-    blocks: (list) list of blocks, with each block describes a block in the NN to be built
+  
+  Parameters
+  ----------
+  cfgfile: (str) path to config file
+  
+  Returns
+  -------
+  blocks: (list) list of blocks, with each block describes a block in the NN to be built
   """
   file = open(cfgfile, 'r')
   lines = file.read().split('\n')  # store the lines in a list
@@ -43,16 +47,19 @@ def transform_coord(bbox):
   """Transform bbox coordinates
     |---------|           (x1,y1) *---------|
     |         |                   |         |
-    |  (x,y)  | h    ===>         |         |
+    |  (x,y)  h      ===>         |         |
     |         |                   |         |
-    |_________|                   |_________* (x2,y2)
-        w
-  @args
-    bbox: (torch.Tensor) bbox with size [batch_size, # bboxes, 4]
-      4 = [center x, center y, height, width] 
-  @returns
-    bbox_transformed: (torch.Tensor) transformed bbox with size [batch_size, # bboxes, 4]
-      4 = [top-left x, top-left y, right-bottom x, right-bottom y]
+    |____w____|                   |_________* (x2,y2)
+
+  Parameters
+  ----------
+  bbox: (Tensor) bbox with size [batch_size, # bboxes, 4]
+    4 => [center x, center y, height, width] 
+
+  Returns
+  -------
+  bbox_transformed: (Tensor) bbox with size [batch_size, # bboxes, 4]
+    4 => [top-left x, top-left y, right-bottom x, right-bottom y]
   """
   bbox_transformed = bbox.new(bbox.size())
   bbox_transformed[..., 0] = (bbox[..., 0] - bbox[..., 2]/2)
@@ -64,11 +71,13 @@ def transform_coord(bbox):
 
 def IoU(box1, box2, format='corner'):
   """Compute IoU between box1 and box2
-  @args
-    box: (torch.Tensor) bboxes with size [# bboxes, 4]
-    format: (str) bbox format
-      'corner' => [x1, y1, x2, y2]
-      'center' => [xc, yc, w, h]
+
+  Parameters
+  ----------
+  box: (torch.cuda.Tensor) bboxes with size [# bboxes, 4]  # TODO: cpu
+  format: (str) bbox format
+    'corner' => [x1, y1, x2, y2]
+    'center' => [xc, yc, w, h]
   """
   if format == 'center':
     box1 = transform_coord(box1)
@@ -89,14 +98,21 @@ def IoU(box1, box2, format='corner'):
   return inter_area / (b1_area + b2_area - inter_area)
 
 
-def save_detection(img_path, detection, dets_dir, reso):
-  """Draw and save detection result
-  @args
-    img_path: (str) path to image
-    detection: (np.array) detection result, with size [#bbox, 8]
-      8 = [batch_idx, top-left x, top-left y, bottom-right x, bottom-right y, objectness, conf, class idx]
-    dets_dir: (str) detection result save path
-    reso: (int) image resolution
+def draw_detection(img_path, detection, reso, dets_dir=None, save=False):
+  """Draw detection result
+
+  Parameters
+  ----------
+  img_path: (str) path to image
+  detection: (np.array) detection result, with size [#bbox, 8]
+    8 = [batch_idx, top-left x, top-left y, bottom-right x, bottom-right y, objectness, conf, class idx]
+  reso: (int) image resolution
+  dets_dir: (str) detection result save path
+  save: (bool) whether to save detection result
+
+  Returns
+  -------
+  img: (Pillow.Image) detection result
   """
   class_names = config.datasets['coco']['class_names']
   img_name = img_path.split('/')[-1]
@@ -117,14 +133,18 @@ def save_detection(img_path, detection, dets_dir, reso):
     draw.rectangle(((x1 * w_ratio, y1 * h_ratio, x2 * w_ratio, y2 * h_ratio)), outline='red')
     draw.text((x1 * w_ratio, y1 * h_ratio), caption, fill='red')
 
-  img.save(opj(dets_dir, img_name))
+  if save == True:
+    img.save(opj(dets_dir, img_name))
+
+  return img
 
 
 def get_current_time():
   """Get current datetime
 
-  @returns
-    time: (str) time in format "dd-hh-mm"
+  Returns
+  -------
+  time: (str) time in format "dd-hh-mm"
   """
   time = str(datetime.datetime.now())
   time = time.split('-')[-1].split('.')[0]
@@ -138,5 +158,15 @@ def get_current_time():
     day += 'rd'
   else:
     day += 'th'
-  time = day + '-' + hour + ':' + minute
+  time = day + '.' + hour + '.' + minute
   return str(time)
+
+
+def activate_offsets():
+  """Transform raw offsets to true offsets
+
+  Parameters
+  ----------
+  
+  """
+  

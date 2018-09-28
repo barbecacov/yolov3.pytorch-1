@@ -19,7 +19,7 @@ class TestDataset(torch.utils.data.dataset.Dataset):
 
   def __init__(self, imgs_dir, transform):
     """
-    @args
+    Parameters
       imgs_dir: (str) test images directory
       transform: (torchvision.transforms)
     """
@@ -31,7 +31,7 @@ class TestDataset(torch.utils.data.dataset.Dataset):
     """
     Get image path
 
-    @args:
+    Parameters
       index: (int)
     """
     img_name = self.imgs_list[index]
@@ -52,6 +52,15 @@ class TestDataset(torch.utils.data.dataset.Dataset):
 
 class CocoDataset(CocoDetection):
   def __getitem__(self, index):
+    """
+    Returns
+      path: (str) image file name
+      img: (Tensor) with size [C, H, W]
+      TODO: memory improvements ?
+      target_tensor: (Tensor) with size [100,5]
+        100 => fixed size # bboxes
+        5 => [xc, yc, w, h, label]
+    """
     coco = self.coco
     img_id = self.ids[index]
     ann_ids = coco.getAnnIds(imgIds=img_id)
@@ -59,8 +68,8 @@ class CocoDataset(CocoDetection):
     img = Image.open(os.path.join(self.root, path)).convert('RGB')
     w, h = img.size
     target = coco.loadAnns(ann_ids)
-    assert len(target) < 50, "# bboxes exceed 50"
-    target_tensor = torch.zeros(50, 5)
+    assert len(target) < 100, "# bboxes exceed 100"
+    target_tensor = torch.zeros(100, 5)
     for i in range(len(target)):
       target_tensor[i, :4] = torch.Tensor(target[i]['bbox'])
       target_tensor[i, 4] = config.datasets['coco']['category_id_mapping'][int(target[i]['category_id'])]
@@ -78,7 +87,7 @@ class SixdDataset(torch.utils.data.dataset.Dataset):
 
   def __init__(self, root, listname, transform):
     """Init class
-    @args
+    Parameters
       root: (str) path to dataset
       listname: (str) image list filename
       transform: (torchvision.transforms)
@@ -91,7 +100,7 @@ class SixdDataset(torch.utils.data.dataset.Dataset):
     self.img_dir = opj(root, 'JPEGImages')
     self.anno_dir = opj(root, 'Annotations')
     self.filelist = opj(root, 'ImageSets/Main', listname)
-    libname = opj(config.ROOT_DIR, 'lib', root.split('/')[-1] + '.pkl')
+    libname = opj(config.ROOT, 'lib', root.split('/')[-1] + '.pkl')
 
     if os.path.exists(libname):
       with open(libname, 'rb') as f:
@@ -140,7 +149,7 @@ class SixdDataset(torch.utils.data.dataset.Dataset):
 
         self.annos.append(img_anno)
 
-      with open(opj(config.ROOT_DIR, 'lib', libname), 'wb') as f:
+      with open(opj(config.ROOT, 'lib', libname), 'wb') as f:
         pickle.dump({
             'img_names': self.img_names,
             'annos': self.annos
@@ -150,13 +159,16 @@ class SixdDataset(torch.utils.data.dataset.Dataset):
       print("save annotations to disk")
 
   def __getitem__(self, index):
-    """Return dataset item
-    @args
-      index: (int) item index
-    @returns
-      img_tensor: (torch.Tensor) Tensor with size [C, H, W]
-      img_anno: (torch.Tensor) corresponding annotation with size [15, 5]
-      img_name: (str) image name
+    """    
+    Parameters
+    -------
+    index: (int) item index
+    
+    Returns
+    -------
+    img_tensor: (Tensor) Tensor with size [C, H, W]
+    img_anno: (Tensor) corresponding annotation with size [15, 5]
+    img_name: (str) image name
     """
     img_name = self.img_names[index]
     img = Image.open(opj(self.img_dir, img_name))
@@ -173,11 +185,13 @@ class SixdDataset(torch.utils.data.dataset.Dataset):
 
 def prepare_test_dataset(path, reso, batch_size=1):
   """Prepare dataset for evaluation
-  @args
+  
+  Parameters
     path: (str) path to images
     reso: (int) evaluation image resolution
     batch_size: (int) default 1
-  @returns
+  
+  Returns
     img_datasets: (torchvision.datasets) test image datasets
     dataloader: (DataLoader)
   """
@@ -196,12 +210,12 @@ def prepare_train_dataset(name, reso, batch_size=32):
   """
   Prepare dataset for training/validation
 
-  @args
+  Parameters
     name: (str) dataset name [tejani, hinter]
     reso: (int) training/validation image resolution
     batch_size: (int) default 1
 
-  @returns
+  Returns
     trainloader, valloader: (Dataloader) dataloader for training and validation
   """
   transform = transforms.Compose([

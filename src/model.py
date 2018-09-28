@@ -2,6 +2,7 @@ import torch
 import numpy as np
 import torch.nn as nn
 from torch.autograd import Variable
+from collections import defaultdict
 
 from layers import MaxPool1s, EmptyLayer, DetectionLayer, NMSLayer
 from utils import parse_cfg
@@ -10,24 +11,24 @@ from utils import parse_cfg
 class YOLOv3(nn.Module):
   """YOLO v3 model"""
 
-  def __init__(self, cfgfile, input_dim):
+  def __init__(self, cfgfile, reso):
     """Init the model
-    @args
+    Parameters
       cfgfile: (str) path to yolo v3 config file
-      input_dim: (int) 
+      reso: (int) original image resolution
     """
     super(YOLOv3, self).__init__()
     self.blocks = parse_cfg(cfgfile)
-    self.input_dim = input_dim
+    self.reso = reso
     self.cache = dict()  # cache for computing loss
     self.module_list = self.build_model(self.blocks)
     self.nms = NMSLayer()
 
   def build_model(self, blocks):
     """Build YOLOv3 model from building blocks
-    @args
+    Parameters
       blocks: (list) list of building blocks description
-    @returns
+    Returns
       module_list: (nn.ModuleList) module list of neural network
     """
     module_list = nn.ModuleList()
@@ -106,8 +107,9 @@ class YOLOv3(nn.Module):
         anchors = [anchors[i] for i in mask]
 
         num_classes = int(block['classes'])
+        ignore_thresh = float(block['ignore_thresh'])
 
-        detection = DetectionLayer(anchors, num_classes, self.input_dim)
+        detection = DetectionLayer(anchors, num_classes, self.reso, ignore_thresh)
         module.add_module('detection_{}'.format(idx), detection)
 
       module_list.append(module)
@@ -118,15 +120,22 @@ class YOLOv3(nn.Module):
 
   def forward(self, x):
     """Forwarad pass of YOLO v3
-    @args
-      x: (torch.Tensor) input Tensor, with size [batch_size, C, H, W]
-    @params
-      self.cache: (dict) cache of raw detection result, each with size [batch_size, # bboxes, 5+num_classes]
-        5 => [xc, yc, w, h, objectness score]
-    @returns
-      detections: (torch.Tensor) detection in different scales, with size [batch_size, # bboxes, 5+num_classes]
-        # bboxes => grid_size (13*13 + 26*26 + 52*52) * num_ancors 3 = 10647
-        5 => [x1, y1, x2, y2, objectness score]
+    Parameters
+    ----------
+    x: (Tensor) input Tensor, with size
+      [batch_size, C, H, W]
+    
+    Variables
+    ---------
+    TODO: cache ?
+    self.cache: (dict) cache of raw detection result, each with size 
+      [batch_size, num_bboxes, [xc, yc, w, h, p_ob]+num_classes]
+
+    Returns
+    -------
+    detections: (Tensor) detection result with size
+      [num_bboxes, 8]
+        8 => [image batch idx, 4 offsets, objectness, max conf, class idx]
     """
     detections = torch.Tensor()  # detection results
     outputs = dict()   # output cache for route layer
@@ -159,8 +168,8 @@ class YOLOv3(nn.Module):
         outputs[i] = x
 
       elif block['type'] == 'yolo':
-        x = self.module_list[i](x)
         self.cache[i] = x  # cache for loss
+        x = self.module_list[i](x)
         detections = x if len(detections.size()) == 1 else torch.cat((detections, x), 1)
         outputs[i] = outputs[i-1]  # skip
 
@@ -168,26 +177,38 @@ class YOLOv3(nn.Module):
 
     return detections
 
-  def loss(self, y_true):
+  def loss(self, y_true, lambda_coord=1, lambda_non_coord=0.1):
     """Compute loss
-    @args
-      y_true: (torch.Tensor) annotations with size [B, 15, 5]
-        15 => number of bboxes (fixed to 15)
-        5 => [x1, y1, x2, y2] scale to (0,1) + label
-        (x1,y1) *————————|                     |——-—w————|
-                |        |                     |         |
-                |        |                     | (xc,yc) h
-                |        |                     |         |
-                |________* (x2,y2)             |_________|
-    @params
-      y_pred: (torch.Tensor) raw detections with size [B, (5+num_classes)*3, grid_size, grid_size]
-        3 => # anchors
-        5 => [tx, ty, tw, th, objectness]
+
+    Parameters
+    ----------
+    y_true: (Tensor) annotations with size 
+      [B, num_bboxes, 5=(xc, yc, w, h, label_id)]
+
+    Variables
+    ---------
+    y_pred: (Tensor) raw detections with size
+      [batch_size, (5=(tx,ty,tw,th,p_obj)+num_classes)*3=(num_anchors), grid_size, grid_size]
     """
+    losses = defaultdict(float)
+    correct_nums, total_nums = 0, 0
     for i, y_pred in self.cache.items():
       block = self.blocks[i]
       assert block['type'] == 'yolo'
-      loss = self.module_list[i][0].loss(y_pred, y_true)
+      loss, correct_num, total_num = self.module_list[i][0].loss(y_pred, y_true.clone())
+      correct_nums += correct_num
+      total_nums += total_num
+      for name in loss.keys():
+        if name == 'conf':
+          losses['conf'] += lambda_non_coord * loss[name]
+        elif name == 'cls':
+          losses['cls'] += lambda_non_coord * loss[name]
+        else:
+          losses['coord'] += lambda_coord * loss[name]
+
+    losses['total'] = losses['conf'] + losses['cls'] + losses['coord']
+
+    return losses, correct_nums, total_nums
 
   def load_weights(self, path):
     """
@@ -197,7 +218,7 @@ class YOLOv3(nn.Module):
       1. (optional) conv_bias
       2. conv_weights
 
-    @args
+    Parameters
       path: (str) path to weights file
     """
     fp = open(path, 'rb')
@@ -251,3 +272,6 @@ class YOLOv3(nn.Module):
         conv_weights = conv_weights.view_as(conv.weight.data)
         conv.weight.data.copy_(conv_weights)
         ptr = ptr + num_weights
+
+  def get_reso(self):
+    return self.reso

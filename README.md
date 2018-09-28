@@ -1,10 +1,11 @@
 # yolov3.pytorch
 
-**❗ ATTENTION** 2018/09/25 This repo is under construction, only used for personal use
+* 2018/09/28 **UPDATE**Loss function is implmented, while training is not working currently  
+* 2018/09/25 **❗ ATTENTION**This repo is under construction, only used for personal use  
 
 This repository contains code for a object detector based on [YOLOv3: An Incremental Improvement](https://pjreddie.com/media/files/papers/YOLOv3.pdf), implemented in PyTorch. This repository is based on [ayooshkathuria/pytorch-yolo-v3](https://github.com/ayooshkathuria/pytorch-yolo-v3). I re-implemented it in PyTorch for better readability and re-useablity.
 
-## File Tree :open_file_folder:
+## File Tree
 
 ```bash
 .
@@ -23,7 +24,7 @@ This repository contains code for a object detector based on [YOLOv3: An Increme
 └── lib               # folder of static file, like .cfg and .weights
 ```
 
-## Requirements :snake:
+## Requirements
 
 * Python 3.6
 * PyTorch **0.4** (v0.4.1 or v0.3 is not supported)
@@ -31,11 +32,11 @@ This repository contains code for a object detector based on [YOLOv3: An Increme
 * Numpy
 * CUDA (**CPU is not supported for both training and test!**)
 
-## Train :seedling:
+## Train
 
 ### How to run this code
 
-1. Download COCO detection dataset or prepare your own dataset
+1. Download [COCO detection](http://cocodataset.org/#download) dataset and annotions, or prepare your own dataset follow the instructions in [Train on custom dataset](https://github.com/ECer23/yolov3.pytorch#train-on-custom-dataset)
 2. Provide information of dataset in `config.py`
 3. Run `python train.py`
 4. (optional) Visualize the training process by running `tensorboard --logdir ../log`
@@ -76,7 +77,7 @@ I've implemented `prepare_train_dataset` in `dataset.py` to prepare COCO dataloa
 
 
 
-## Evaluation :deciduous_tree:
+## Evaluation
 
 ### How to run this code
 
@@ -109,7 +110,7 @@ I've implemented `prepare_train_dataset` in `dataset.py` to prepare COCO dataloa
 - [ ] CPU support
 - [ ] Memory use imporvements
 
-## Reference :mag:
+## Reference
 
 * [Series: YOLO object detector in PyTorch](https://blog.paperspace.com/tag/series-yolo/) A very nice tutorial of YOLO v3
 * [ayooshkathuria/pytorch-yolo-v3](https://github.com/ayooshkathuria/pytorch-yolo-v3) PyTorch implmentation of YOLO v3, with only evaluation part

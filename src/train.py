@@ -19,8 +19,7 @@ def parse_arg():
   parser = argparse.ArgumentParser(description='YOLO v3 training')
   parser.add_argument('--reso', default=416, type=int, help="Input image resolution")
   parser.add_argument('--lr', default=1e-3, type=float, help="Learning rate")
-  parser.add_argument('--batch_size', default=16, type=int)
-  parser.add_argument('--start_epoch', default=0, type=int)
+  parser.add_argument('--batch_size', default=32, type=int)
   parser.add_argument('--dataset', default='coco', choices=['tejani', 'coco'], type=str, help="Dataset name")
   parser.add_argument('-r', action='store_true', help="Resume from checkpoint")
   return parser.parse_args()
@@ -61,16 +60,19 @@ def train(epoch, trainloader, yolo, lr):
     loss['total'].backward()
     optimizer.step()
 
-    if batch_idx % 100 == 0:
-      if detections.size(0) == 0:
-        continue
+    if batch_idx % 200 == 0:
       # TODO: train_root format
       if args.dataset == 'coco':
         img_path = opj(config.datasets[args.dataset]['train_root'], 'train2017', names[0])
       else:
         img_path = opj(config.datasets[args.dataset]['train_root'], 'JPEGImages', names[0])
-      detection = detections[detections[:, 0] == 0]
-      img = draw_detection(img_path, detection, yolo.get_reso())
+
+      if detections.size(0) == 0:
+        from PIL import Image
+        img = Image.open(img_path)
+      else:
+        detection = detections[detections[:, 0] == 0]
+        img = draw_detection(img_path, detection, yolo.get_reso())
       img_tensor = utils.make_grid(transforms.ToTensor()(img))
       writer.add_image('image', img_tensor, global_step)
 
@@ -92,9 +94,10 @@ if __name__ == '__main__':
 
   print("\n==> Loading network ...\n")
   yolo = YOLOv3(cfg, args.reso).cuda()
+  start_epoch = 0
   # yolo.load_weights(weights)
 
   print("\n==> Training ...\n")
   yolo.train()
-  for epoch in range(args.start_epoch, args.start_epoch+100):
+  for epoch in range(start_epoch, args.start_epoch+100):
     train(epoch, dataloader, yolo, args.lr)

@@ -78,7 +78,7 @@ class CocoDataset(CocoDetection):
       target_tensor[i, 1] /= h
       target_tensor[i, 3] /= h
     if self.transform is not None:
-        img = self.transform(img)
+      img = self.transform(img)
     return path, img, target_tensor
 
 
@@ -128,7 +128,7 @@ class SixdDataset(torch.utils.data.dataset.Dataset):
         height = int(root.find('size').find('height').text)
         objects = root.findall('object')
         img_anno = np.ndarray((len(objects), 5))
-        
+
         for i, o in enumerate(objects):
           bndbox = o.find('bndbox')
           for j, child in enumerate(bndbox):         # bbox
@@ -163,7 +163,7 @@ class SixdDataset(torch.utils.data.dataset.Dataset):
     Parameters
     -------
     index: (int) item index
-    
+
     Returns
     -------
     img_tensor: (Tensor) Tensor with size [C, H, W]
@@ -185,12 +185,12 @@ class SixdDataset(torch.utils.data.dataset.Dataset):
 
 def prepare_test_dataset(path, reso, batch_size=1):
   """Prepare dataset for evaluation
-  
+
   Parameters
     path: (str) path to images
     reso: (int) evaluation image resolution
     batch_size: (int) default 1
-  
+
   Returns
     img_datasets: (torchvision.datasets) test image datasets
     dataloader: (DataLoader)
@@ -211,12 +211,14 @@ def prepare_train_dataset(name, reso, batch_size=32):
   Prepare dataset for training/validation
 
   Parameters
-    name: (str) dataset name [tejani, hinter]
-    reso: (int) training/validation image resolution
-    batch_size: (int) default 1
+  ----------
+  name: (str) dataset name [tejani, hinter]
+  reso: (int) training/validation image resolution
+  batch_size: (int) default 1
 
   Returns
-    trainloader, valloader: (Dataloader) dataloader for training and validation
+  -------
+  trainloader, valloader: (Dataloader) dataloader for training and validation
   """
   transform = transforms.Compose([
       transforms.Resize(size=(reso, reso), interpolation=3),
@@ -227,9 +229,9 @@ def prepare_train_dataset(name, reso, batch_size=32):
 
   if name == 'coco':
     img_datasets = CocoDataset(
-      root=opj(train_root, 'train2017'),
-      annFile=opj(train_root, 'annotations/instances_train2017.json'),
-      transform=transform
+        root=opj(train_root, 'train2017'),
+        annFile=opj(train_root, 'annotations/instances_train2017.json'),
+        transform=transform
     )
   else:
     img_datasets = SixdDataset(train_root, 'train.txt', transform=transform)

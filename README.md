@@ -1,7 +1,7 @@
 # yolov3.pytorch
 
 * 2018/09/28 **UPDATE** Loss function is implmented, while training is not working currently  
-* 2018/09/25 **❗ ATTENTION**This repo is under construction, only used for personal use  
+* 2018/09/25 **❗ ATTENTION** This repo is under construction, only used for personal use  
 
 This repository contains code for a object detector based on [YOLOv3: An Incremental Improvement](https://pjreddie.com/media/files/papers/YOLOv3.pdf), implemented in PyTorch. This repository is based on [ayooshkathuria/pytorch-yolo-v3](https://github.com/ayooshkathuria/pytorch-yolo-v3). I re-implemented it in PyTorch for better readability and re-useablity.
 
@@ -11,17 +11,22 @@ This repository contains code for a object detector based on [YOLOv3: An Increme
 .
 ├── assets/           # folder of assets
 │   ├── dets/           # evaluation results folder
-│   └── imgs/           # evaluation images folder
-├── README.md
-├── src/              # folder of source file
-│   ├── config.py       # configuration file
-│   ├── dataset.py      # dataset
-│   ├── layers.py       # supported layers for YOLO v3 model
-│   ├── model.py        # YOLO v3 model
-│   ├── test.py         # evaluation code
-│   ├── train.py        # training code
-│   └── utils.py        # utils function
-└── lib               # folder of static file, like .cfg and .weights
+│   ├── imgs/           # evaluation images folder
+│   └── demo.gif        # training demo
+├── lib               # folder of static file, like .cfg and .weights
+├── log/              # folder of logging files
+│   └── dd.hh.mm/       # sub folder for each run, named with time
+├── scripts           # folder of scripts
+│   ├── download.sh     # download .weights files
+│   └── evaluate.sh     # run evaluation`
+└── src/              # folder of source file
+    ├── config.py        # configuration file
+    ├── dataset.py       # dataset
+    ├── layers.py        # supported layers for YOLO v3 model
+    ├── model.py         # YOLO v3 model
+    ├── test.py          # evaluation code
+    ├── train.py         # training code
+    └── utils.py         # utils function
 ```
 
 ## Requirements
@@ -99,6 +104,7 @@ I've implemented `prepare_train_dataset` in `dataset.py` to prepare COCO dataloa
 - [ ] Training on user specified datasets
   - [x] Loss function implementation
   - [x] Visualize training process
+  - [ ] Fix training problem
   - [ ] Validation
   - [ ] Tutorials of training from scratch
   - [ ] Metrics on evaluation result

@@ -4,6 +4,7 @@ opj = os.path.join
 
 ROOT = '/media/data_1/home/penggao/penggao/detection/yolo3.pytorch'
 LOG_ROOT = opj(ROOT, 'log')
+CKPT_ROOT = opj(ROOT, 'checkpoints')
 
 def parse_names(path):
   """Parse names .json"""

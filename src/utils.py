@@ -2,6 +2,7 @@ import os
 import torch
 import datetime
 import numpy as np
+from pyemojify import emojify
 from PIL import Image, ImageFont, ImageDraw, ImageEnhance
 opj = os.path.join
 
@@ -10,11 +11,11 @@ import config
 
 def parse_cfg(cfgfile):
   """Parse a configuration file
-  
+
   Parameters
   ----------
   cfgfile: (str) path to config file
-  
+
   Returns
   -------
   blocks: (list) list of blocks, with each block describes a block in the NN to be built
@@ -162,11 +163,58 @@ def get_current_time():
   return str(time)
 
 
+def load_checkpoint(checkpoint_dir, epoch):
+  """Load checkpoint from path
+
+  Parameters
+  ----------
+  checkpoint_dir: (str) absolute path to checkpoint folder
+  epoch: (int) epoch of checkpoint file
+
+  Returns
+  -------
+  checkpoint: (checkpoint)
+  start_epoch: (int)
+  state_dict: (dict) state of model
+  """
+  path = opj(checkpoint_dir, str(epoch) + '.ckpt')
+  if not os.path.isfile(path):
+    raise Exception(emojify("Checkpoint in epoch %d doesn't exist :sob:" % epoch))
+
+  checkpoint = torch.load(path)
+  start_epoch = checkpoint['epoch']
+  best_mAP = checkpoint['mAP']
+  state_dict = checkpoint['state_dict']
+
+  assert epoch == start_epoch, emojify("`epoch` != checkpoint's `start_epoch` :poop:")
+  return start_epoch, best_mAP, state_dict
+
+
+def save_checkpoint(checkpoint_dir, epoch, **kargs):
+  """Save checkpoint to path
+
+  Parameters
+  ----------
+  path: (str) absolute path to checkpoint folder
+  epoch: (int) epoch of checkpoint file
+  """
+  path = opj(checkpoint_dir, str(epoch) + '.ckpt')
+  if os.path.isfile(path):
+    print(emojify("Overwrite checkpoint in epoch %d :exclamation:" % epoch))
+  ckpt = dict()
+  for name, value in kargs.items():
+    ckpt[name] = value
+  try:
+    torch.save(ckpt, path)
+  except Exception:
+    raise Exception(emojify("Fail to save checkpoint :sob:"))
+
+
 def activate_offsets():
   """Transform raw offsets to true offsets
 
   Parameters
   ----------
-  
+
   """
-  
+  pass

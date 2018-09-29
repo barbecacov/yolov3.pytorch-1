@@ -213,13 +213,14 @@ class YOLOv3(nn.Module):
   def load_weights(self, path):
     """
     Load weights from disk. YOLOv3 is fully convolutional, so only conv layers' weights will be loaded
-    Weights data are organized as
+    Darknet's weights data are organized as
       1. (optinoal) bn_biases => bn_weights => bn_mean => bn_var
       1. (optional) conv_bias
       2. conv_weights
 
     Parameters
-      path: (str) path to weights file
+    ----------
+    path: (str) path to .weights file
     """
     fp = open(path, 'rb')
     header = np.fromfile(fp, dtype=np.int32, count=5)

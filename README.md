@@ -13,6 +13,8 @@ This repository contains code for a object detector based on [YOLOv3: An Increme
 │   ├── dets/           # evaluation results folder
 │   ├── imgs/           # evaluation images folder
 │   └── demo.gif        # training demo
+├── checkpoints       # folder of checkpoints
+│   └── epoch.ckpt/     # checkpoint file named with epoch
 ├── lib               # folder of static file, like .cfg and .weights
 ├── log/              # folder of logging files
 │   └── dd.hh.mm/       # sub folder for each run, named with time
@@ -50,9 +52,9 @@ This repository contains code for a object detector based on [YOLOv3: An Increme
 
 * `--reso`, image resolution. Image will be resize to `(reso, reso)` during training. The higher resolution is, the more accurate the detection
 * `--lr`, learning rate
-* `--batch_size`, batch size
+* `--batch`, batch size
 * `--dataset`, training dataset name
-* `-r`, whether to resume from checkpoint
+* `--epoch`, start epoch of training
 
 ### Train on custom dataset
 

@@ -19,7 +19,7 @@ class TestDataset(torch.utils.data.dataset.Dataset):
 
   def __init__(self, imgs_dir, transform):
     """
-    Parameters
+    @Args
       imgs_dir: (str) test images directory
       transform: (torchvision.transforms)
     """
@@ -31,7 +31,7 @@ class TestDataset(torch.utils.data.dataset.Dataset):
     """
     Get image path
 
-    Parameters
+    @Args
       index: (int)
     """
     img_name = self.imgs_list[index]
@@ -53,7 +53,7 @@ class TestDataset(torch.utils.data.dataset.Dataset):
 class CocoDataset(CocoDetection):
   def __getitem__(self, index):
     """
-    Returns
+    @Returns
       path: (str) image file name
       img: (Tensor) with size [C, H, W]
       TODO: memory improvements ?
@@ -87,7 +87,7 @@ class SixdDataset(torch.utils.data.dataset.Dataset):
 
   def __init__(self, root, listname, transform):
     """Init class
-    Parameters
+    @Args
       root: (str) path to dataset
       listname: (str) image list filename
       transform: (torchvision.transforms)
@@ -160,12 +160,12 @@ class SixdDataset(torch.utils.data.dataset.Dataset):
 
   def __getitem__(self, index):
     """    
-    Parameters
-    -------
+    @Args
+    
     index: (int) item index
 
-    Returns
-    -------
+    @Returns
+    
     img_tensor: (Tensor) Tensor with size [C, H, W]
     img_anno: (Tensor) corresponding annotation with size [15, 5]
     img_name: (str) image name
@@ -186,12 +186,12 @@ class SixdDataset(torch.utils.data.dataset.Dataset):
 def prepare_test_dataset(path, reso, batch_size=1):
   """Prepare dataset for evaluation
 
-  Parameters
+  @Args
     path: (str) path to images
     reso: (int) evaluation image resolution
     batch_size: (int) default 1
 
-  Returns
+  @Returns
     img_datasets: (torchvision.datasets) test image datasets
     dataloader: (DataLoader)
   """
@@ -210,14 +210,14 @@ def prepare_train_dataset(name, reso, batch_size=32):
   """
   Prepare dataset for training/validation
 
-  Parameters
-  ----------
+  @Args
+  
   name: (str) dataset name [tejani, hinter]
   reso: (int) training/validation image resolution
   batch_size: (int) default 1
 
-  Returns
-  -------
+  @Returns
+  
   trainloader, valloader: (Dataloader) dataloader for training and validation
   """
   transform = transforms.Compose([

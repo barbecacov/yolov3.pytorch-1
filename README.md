@@ -13,12 +13,12 @@ This repository contains code for a object detector based on [YOLOv3: An Increme
 │   ├── dets/           # evaluation results folder
 │   ├── imgs/           # evaluation images folder
 │   └── demo.gif        # training demo
-├── checkpoints       # folder of checkpoints
-│   └── epoch.ckpt/     # checkpoint file named with epoch
-├── lib               # folder of static file, like .cfg and .weights
+├── checkpoints/      # folder of checkpoints
+│   └── coco/           # sub folder for each dataset
+├── lib/              # folder of static file, like .cfg and .weights
 ├── log/              # folder of logging files
 │   └── dd.hh.mm/       # sub folder for each run, named with time
-├── scripts           # folder of scripts
+├── scripts/          # folder of scripts
 │   ├── download.sh     # download .weights files
 │   └── evaluate.sh     # run evaluation`
 └── src/              # folder of source file
@@ -80,7 +80,7 @@ I've implemented `prepare_train_dataset` in `dataset.py` to prepare COCO dataloa
 
 ### Tensorboard demo
 
-![](https://raw.githubusercontent.com/ECer23/yolov3.pytorch/master/assets/training_demo.gif)
+![](https://raw.githubusercontent.com/ECer23/yolov3.pytorch/master/assets/demo.gif)
 
 ## Evaluation
 

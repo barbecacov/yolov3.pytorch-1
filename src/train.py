@@ -13,7 +13,7 @@ warnings.filterwarnings("ignore")
 import config
 from model import YOLOv3
 from dataset import prepare_train_dataset
-from utils import get_current_time, save_detection, save_checkpoint, load_checkpoint
+from utils import get_current_time, draw_detection, save_checkpoint, load_checkpoint
 
 
 def parse_arg():
@@ -36,7 +36,7 @@ writer = SummaryWriter(log_dir=log_dir)
 def train(epoch, trainloader, yolo, lr):
   """Training wrapper
 
-  Parameters
+  @Args
     epoch: (int) training epoch
     trainloader: (Dataloader) train data loader 
     yolo: (nn.Module) YOLOv3 model
@@ -72,7 +72,7 @@ def train(epoch, trainloader, yolo, lr):
         img_path = opj(config.datasets[args.dataset]['train_root'], 'JPEGImages', names[0])
 
       detection = detections[detections[:, 0] == 0]
-      img = draw_detection(img_path, detection, yolo.get_reso())
+      img = draw_detection(img_path, detection, yolo.reso)
       img_tensor = utils.make_grid(transforms.ToTensor()(img))
       writer.add_image('image', img_tensor, global_step)
 
@@ -97,7 +97,7 @@ if __name__ == '__main__':
   start_epoch = args.epoch
   best_mAP = 0
   if start_epoch > 0:
-    start_epoch, best_mAP, state_dict = load_checkpoint(config.CKPT_ROOT, start_epoch)
+    start_epoch, best_mAP, state_dict = load_checkpoint(opj(config.CKPT_ROOT, args.dataset), start_epoch)
     yolo.load_state_dict(state_dict)
 
   print(emojify("\n==> Training :seedling:\n"))
@@ -105,4 +105,9 @@ if __name__ == '__main__':
   for epoch in range(start_epoch, start_epoch+20):
     train(epoch, dataloader, yolo, args.lr)
     if epoch % 5 == 4:  # save every 4 epochs
-      save_checkpoint(config.CKPT_ROOT, epoch)
+      save_dict = {
+        'mAP': 0,
+        'epoch': epoch,
+        'state_dict': yolo.state_dict()
+      }
+      save_checkpoint(opj(config.CKPT_ROOT, args.dataset), epoch, save_dict)

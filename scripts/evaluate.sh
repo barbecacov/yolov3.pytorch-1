@@ -1,2 +1,2 @@
 cd ../src
-python test.py
+python evaluate.py

@@ -12,13 +12,11 @@ import config
 def parse_cfg(cfgfile):
   """Parse a configuration file
 
-  Parameters
-  ----------
-  cfgfile: (str) path to config file
+  @Args
+    cfgfile: (str) path to config file
 
-  Returns
-  -------
-  blocks: (list) list of blocks, with each block describes a block in the NN to be built
+  @Returns
+    blocks: (list) list of blocks, with each block describes a block in the NN to be built
   """
   file = open(cfgfile, 'r')
   lines = file.read().split('\n')  # store the lines in a list
@@ -52,15 +50,13 @@ def transform_coord(bbox):
     |         |                   |         |
     |____w____|                   |_________* (x2,y2)
 
-  Parameters
-  ----------
-  bbox: (Tensor) bbox with size [batch_size, # bboxes, 4]
-    4 => [center x, center y, height, width] 
+  @Args
+    bbox: (Tensor) bbox with size [batch_size, # bboxes, 4]
+      4 => [center x, center y, height, width] 
 
-  Returns
-  -------
-  bbox_transformed: (Tensor) bbox with size [batch_size, # bboxes, 4]
-    4 => [top-left x, top-left y, right-bottom x, right-bottom y]
+  @Returns
+    bbox_transformed: (Tensor) bbox with size [batch_size, # bboxes, 4]
+      4 => [top-left x, top-left y, right-bottom x, right-bottom y]
   """
   bbox_transformed = bbox.new(bbox.size())
   bbox_transformed[..., 0] = (bbox[..., 0] - bbox[..., 2]/2)
@@ -73,12 +69,11 @@ def transform_coord(bbox):
 def IoU(box1, box2, format='corner'):
   """Compute IoU between box1 and box2
 
-  Parameters
-  ----------
-  box: (torch.cuda.Tensor) bboxes with size [# bboxes, 4]  # TODO: cpu
-  format: (str) bbox format
-    'corner' => [x1, y1, x2, y2]
-    'center' => [xc, yc, w, h]
+  @Args
+    box: (torch.cuda.Tensor) bboxes with size [# bboxes, 4]  # TODO: cpu
+    format: (str) bbox format
+      'corner' => [x1, y1, x2, y2]
+      'center' => [xc, yc, w, h]
   """
   if format == 'center':
     box1 = transform_coord(box1)
@@ -102,18 +97,16 @@ def IoU(box1, box2, format='corner'):
 def draw_detection(img_path, detection, reso, dets_dir=None, save=False):
   """Draw detection result
 
-  Parameters
-  ----------
-  img_path: (str) path to image
-  detection: (np.array) detection result, with size [#bbox, 8]
-    8 = [batch_idx, top-left x, top-left y, bottom-right x, bottom-right y, objectness, conf, class idx]
-  reso: (int) image resolution
-  dets_dir: (str) detection result save path
-  save: (bool) whether to save detection result
+  @Args
+    img_path: (str) path to image
+    detection: (np.array) detection result, with size [#bbox, 8]
+      8 = [batch_idx, top-left x, top-left y, bottom-right x, bottom-right y, objectness, conf, class idx]
+    reso: (int) image resolution
+    dets_dir: (str) detection result save path
+    save: (bool) whether to save detection result
 
-  Returns
-  -------
-  img: (Pillow.Image) detection result
+  @Returns
+    img: (Pillow.Image) detection result
   """
   class_names = config.datasets['coco']['class_names']
   img_name = img_path.split('/')[-1]
@@ -143,9 +136,8 @@ def draw_detection(img_path, detection, reso, dets_dir=None, save=False):
 def get_current_time():
   """Get current datetime
 
-  Returns
-  -------
-  time: (str) time in format "dd-hh-mm"
+  @Returns
+    time: (str) time in format "dd-hh-mm"
   """
   time = str(datetime.datetime.now())
   time = time.split('-')[-1].split('.')[0]
@@ -166,16 +158,14 @@ def get_current_time():
 def load_checkpoint(checkpoint_dir, epoch):
   """Load checkpoint from path
 
-  Parameters
-  ----------
-  checkpoint_dir: (str) absolute path to checkpoint folder
-  epoch: (int) epoch of checkpoint file
+  @Args
+    checkpoint_dir: (str) absolute path to checkpoint folder  
+    epoch: (int) epoch of checkpoint file  
 
-  Returns
-  -------
-  checkpoint: (checkpoint)
-  start_epoch: (int)
-  state_dict: (dict) state of model
+  @Returns
+    start_epoch: (int)
+    mAP: (float)
+    state_dict: (dict) state of model  
   """
   path = opj(checkpoint_dir, str(epoch) + '.ckpt')
   if not os.path.isfile(path):
@@ -190,22 +180,20 @@ def load_checkpoint(checkpoint_dir, epoch):
   return start_epoch, best_mAP, state_dict
 
 
-def save_checkpoint(checkpoint_dir, epoch, **kargs):
+def save_checkpoint(checkpoint_dir, epoch, save_dict):
   """Save checkpoint to path
 
-  Parameters
-  ----------
-  path: (str) absolute path to checkpoint folder
-  epoch: (int) epoch of checkpoint file
+  @Args
+    path: (str) absolute path to checkpoint folder  
+    epoch: (int) epoch of checkpoint file  
+    save_dict: (dict) saving parameters dict
   """
+  os.makedirs(checkpoint_dir, exist_ok=True)
   path = opj(checkpoint_dir, str(epoch) + '.ckpt')
   if os.path.isfile(path):
     print(emojify("Overwrite checkpoint in epoch %d :exclamation:" % epoch))
-  ckpt = dict()
-  for name, value in kargs.items():
-    ckpt[name] = value
   try:
-    torch.save(ckpt, path)
+    torch.save(save_dict, path)
   except Exception:
     raise Exception(emojify("Fail to save checkpoint :sob:"))
 
@@ -213,8 +201,8 @@ def save_checkpoint(checkpoint_dir, epoch, **kargs):
 def activate_offsets():
   """Transform raw offsets to true offsets
 
-  Parameters
-  ----------
+  @Args
+  
 
   """
   pass

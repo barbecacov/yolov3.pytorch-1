@@ -30,17 +30,17 @@ class EmptyLayer(nn.Module):
 
 
 class DetectionLayer(nn.Module):
-  """Detection layer"""
+  """Detection layer
+  
+  @Args
+    anchors: (list) list of anchor box sizes tuple
+    num_classes: (int) # classes
+    reso: (int) original image resolution
+    ignore_thresh: (float)
+    TODO: cache ?
+  """
 
   def __init__(self, anchors, num_classes, reso, ignore_thresh):
-    """
-    Parameters
-      anchors: (list) list of anchor box sizes tuple
-      num_classes: (int) # classes
-      reso: (int) original image resolution
-      ignore_thresh: (float)
-    TODO: cache ?
-    """
     super(DetectionLayer, self).__init__()
     self.anchors = anchors
     self.num_classes = num_classes
@@ -49,7 +49,8 @@ class DetectionLayer(nn.Module):
     self.cache = dict()
 
   def forward(self, x):
-    """Transform feature map into 2-D tensor. Transformation includes
+    """
+    Transform feature map into 2-D tensor. Transformation includes
     1. Re-organize tensor to make each row correspond to a bbox
     2. Transform center coordinates
       bx = sigmoid(tx) + cx
@@ -59,15 +60,13 @@ class DetectionLayer(nn.Module):
       bh = ph * exp(th)
     4. Softmax
 
-    Parameters
-    ----------
-    x: (Tensor) feature map with size [B, (5+#classes)*3, grid_size, grid_size]
-      5 => [4 offsets (xc, yc, w, h), objectness score]
-      3 => # anchor boxes pixel-wise
+    @Args
+      x: (Tensor) feature map with size [B, (5+#classes)*3, grid_size, grid_size]
+        5 => [4 offsets (xc, yc, w, h), objectness score]
+        3 => # anchor boxes pixel-wise
 
-    Returns
-    -------
-    detections: (Tensor) feature map with size [B, 13*13*3, 5+#classes]
+    @Returns
+      detections: (Tensor) feature map with size [B, 13*13*3, 5+#classes]
     """
     batch_size, _, grid_size, _ = x.size()
     stride = self.reso // grid_size  # no pooling used, stride is the only downsample
@@ -112,25 +111,22 @@ class DetectionLayer(nn.Module):
     2. Built gt [tx, ty, tw, th] and masks  TODO: Forward loss computation?
     3. Compute loss
 
-    Parameters
-    ----------
-    y_pred: (Tensor) raw offsets predicted feature map with size
-      [B, ([tx, ty, tw, th, p_obj]+num_classes)*num_anchors, grid_size, grid_size]
-    y_true: (Tensor) scaled to (0,1) true offsets annotations with size
-      [B, num_bboxes, [xc, yc, w, h] + label_id]
-    lambda_coord: (float) coordinates loss weights
+    @Args
+      y_pred: (Tensor) raw offsets predicted feature map with size
+        [B, ([tx, ty, tw, th, p_obj]+num_classes)*num_anchors, grid_size, grid_size]
+      y_true: (Tensor) scaled to (0,1) true offsets annotations with size
+        [B, num_bboxes, [xc, yc, w, h] + label_id]
+      lambda_coord: (float) coordinates loss weights
 
-    Variables TODO: explain parameters in function
-    ---------
-    mask: 
-    conf_mask:
-    cls_mask:
-    conf_obj:
-    gt_box_shape:
-    gt_cls:
-    anchor_bboxes:
-    gt_bbox: (Tensor) true bbox scaled to grid's size, with size
-      [xc, yc, w, h]
+    @Varibles TODO: explain parameters in function
+      mask: 
+      conf_mask:
+      cls_mask:
+      conf_obj:
+      gt_box_shape:
+      gt_cls:
+      anchor_bboxes:
+      gt_bbox: (Tensor) true bbox scaled to grid's size, with size [xc, yc, w, h]
     """
     loss = dict()
     correct_num = 0
@@ -224,35 +220,31 @@ class DetectionLayer(nn.Module):
 
 
 class NMSLayer(nn.Module):
-  """NMS layer which performs Non-maximum Suppression
-    1. Filter background
-    2. Get detection with particular class
-    3. Sort by confidence
-    4. Suppress non-max detection
+  """
+  NMS layer which performs Non-maximum Suppression
+  1. Filter background
+  2. Get detection with particular class
+  3. Sort by confidence
+  4. Suppress non-max detection
+
+  @Args    
+    conf_thresh: (float) fore-ground confidence threshold, default 0.5
+    nms_thresh: (float) nms threshold, default 0.4
+
   """
 
   def __init__(self, conf_thresh=0.8, nms_thresh=0.4):
-    """
-    Parameters
-    ----------
-    conf_thresh: (float) fore-ground confidence threshold, default 0.5
-    nms_thresh: (float) nms threshold, default 0.4
-    """
     super(NMSLayer, self).__init__()
     self.conf_thresh = conf_thresh
     self.nms_thresh = nms_thresh
 
   def forward(self, x):
     """
-    Parameters
-    ----------
-    x: (Tensor) detection feature map, with size
-      [batch_idx, num_bboxes, [x,y,w,h,p_obj]+num_classes]
+    @Args
+      x: (Tensor) detection feature map, with size [batch_idx, num_bboxes, [x,y,w,h,p_obj]+num_classes]
 
-    Returns
-    -------
-    detections: (Tensor) detection result with size
-      [num_bboxes, [image_batch_idx, 4 offsets, p_obj, max_conf, cls_idx]]
+    @Returns
+      detections: (Tensor) detection result with size [num_bboxes, [image_batch_idx, 4 offsets, p_obj, max_conf, cls_idx]]
     """
     batch_size = x.size(0)
     conf_mask = (x[..., 4] > self.conf_thresh).float().unsqueeze(2)

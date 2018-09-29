@@ -9,14 +9,15 @@ from utils import parse_cfg
 
 
 class YOLOv3(nn.Module):
-  """YOLO v3 model"""
+  """YOLO v3 model
+
+  @Args
+
+  cfgfile: (str) path to yolo v3 config file  
+  reso: (int) original image resolution  
+  """
 
   def __init__(self, cfgfile, reso):
-    """Init the model
-    Parameters
-      cfgfile: (str) path to yolo v3 config file
-      reso: (int) original image resolution
-    """
     super(YOLOv3, self).__init__()
     self.blocks = parse_cfg(cfgfile)
     self.reso = reso
@@ -26,10 +27,14 @@ class YOLOv3(nn.Module):
 
   def build_model(self, blocks):
     """Build YOLOv3 model from building blocks
-    Parameters
-      blocks: (list) list of building blocks description
-    Returns
-      module_list: (nn.ModuleList) module list of neural network
+
+    @Args
+
+    blocks: (list) list of building blocks description
+
+    @Returns
+
+    module_list: (nn.ModuleList) module list of neural network
     """
     module_list = nn.ModuleList()
     in_channels = 3  # start from RGB 3 channels
@@ -120,22 +125,16 @@ class YOLOv3(nn.Module):
 
   def forward(self, x):
     """Forwarad pass of YOLO v3
-    Parameters
-    ----------
-    x: (Tensor) input Tensor, with size
-      [batch_size, C, H, W]
-    
-    Variables
-    ---------
-    TODO: cache ?
-    self.cache: (dict) cache of raw detection result, each with size 
-      [batch_size, num_bboxes, [xc, yc, w, h, p_ob]+num_classes]
 
-    Returns
-    -------
-    detections: (Tensor) detection result with size
-      [num_bboxes, 8]
-        8 => [image batch idx, 4 offsets, objectness, max conf, class idx]
+    @Args
+      x: (Tensor) input Tensor, with size[batch_size, C, H, W]
+
+    @Variables
+      self.cache: (dict) cache of raw detection result, each with size [batch_size, num_bboxes, [xc, yc, w, h, p_ob]+num_classes]
+      TODO: cache ?  
+
+    @Returns
+      detections: (Tensor) detection result with size [num_bboxes, [batch idx, x1, x2, y1, y2, p0, max conf, class idx]]
     """
     detections = torch.Tensor()  # detection results
     outputs = dict()   # output cache for route layer
@@ -180,13 +179,13 @@ class YOLOv3(nn.Module):
   def loss(self, y_true, lambda_coord=1, lambda_non_coord=0.1):
     """Compute loss
 
-    Parameters
-    ----------
+    @Args
+
     y_true: (Tensor) annotations with size 
       [B, num_bboxes, 5=(xc, yc, w, h, label_id)]
 
     Variables
-    ---------
+    --
     y_pred: (Tensor) raw detections with size
       [batch_size, (5=(tx,ty,tw,th,p_obj)+num_classes)*3=(num_anchors), grid_size, grid_size]
     """
@@ -209,70 +208,3 @@ class YOLOv3(nn.Module):
     losses['total'] = losses['conf'] + losses['cls'] + losses['coord']
 
     return losses, correct_nums, total_nums
-
-  def load_weights(self, path):
-    """
-    Load weights from disk. YOLOv3 is fully convolutional, so only conv layers' weights will be loaded
-    Darknet's weights data are organized as
-      1. (optinoal) bn_biases => bn_weights => bn_mean => bn_var
-      1. (optional) conv_bias
-      2. conv_weights
-
-    Parameters
-    ----------
-    path: (str) path to .weights file
-    """
-    fp = open(path, 'rb')
-    header = np.fromfile(fp, dtype=np.int32, count=5)
-    weights = np.fromfile(fp, dtype=np.float32)
-    fp.close()
-
-    header = torch.from_numpy(header)
-
-    ptr = 0
-    for i, module in enumerate(self.module_list):
-      block = self.blocks[i]
-
-      if block['type'] == "convolutional":
-        batch_normalize = int(block['batch_normalize']) if 'batch_normalize' in block else 0
-        conv = module[0]
-
-        if batch_normalize > 0:
-          bn = module[1]
-          num_bn_biases = bn.bias.numel()
-
-          bn_biases = torch.from_numpy(weights[ptr:ptr+num_bn_biases])
-          bn_biases = bn_biases.view_as(bn.bias.data)
-          bn.bias.data.copy_(bn_biases)
-          ptr += num_bn_biases
-
-          bn_weights = torch.from_numpy(weights[ptr:ptr+num_bn_biases])
-          bn_weights = bn_weights.view_as(bn.weight.data)
-          bn.weight.data.copy_(bn_weights)
-          ptr += num_bn_biases
-
-          bn_running_mean = torch.from_numpy(weights[ptr:ptr+num_bn_biases])
-          bn_running_mean = bn_running_mean.view_as(bn.running_mean)
-          bn.running_mean.copy_(bn_running_mean)
-          ptr += num_bn_biases
-
-          bn_running_var = torch.from_numpy(weights[ptr:ptr+num_bn_biases])
-          bn_running_var = bn_running_var.view_as(bn.running_var)
-          bn.running_var.copy_(bn_running_var)
-          ptr += num_bn_biases
-
-        else:
-          num_biases = conv.bias.numel()
-          conv_biases = torch.from_numpy(weights[ptr:ptr+num_biases])
-          conv_biases = conv_biases.view_as(conv.bias.data)
-          conv.bias.data.copy_(conv_biases)
-          ptr = ptr + num_biases
-
-        num_weights = conv.weight.numel()
-        conv_weights = torch.from_numpy(weights[ptr:ptr+num_weights])
-        conv_weights = conv_weights.view_as(conv.weight.data)
-        conv.weight.data.copy_(conv_weights)
-        ptr = ptr + num_weights
-
-  def get_reso(self):
-    return self.reso

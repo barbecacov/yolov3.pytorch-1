@@ -43,7 +43,7 @@ network = {
     }
 }
 
-test = {
+evaluate = {
     'images_dir': opj(ROOT, 'assets/test_imgs'),
     'result_dir': opj(ROOT, 'assets/test_dets')
 }

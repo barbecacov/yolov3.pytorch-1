@@ -1,6 +1,7 @@
 # yolov3.pytorch
 
-* 2018/09/28 **UPDATE** Loss function is implmented, while training is not working currently  
+* 2018/09/30 **UPDATE** mAP is implemented
+* 2018/09/28 **UPDATE** Loss function is implmented  
 * 2018/09/25 **❗ ATTENTION** This repo is under construction
 
 This repository contains code for a object detector based on [YOLOv3: An Incremental Improvement](https://pjreddie.com/media/files/papers/YOLOv3.pdf), implemented in PyTorch. This repository is based on [ayooshkathuria/pytorch-yolo-v3](https://github.com/ayooshkathuria/pytorch-yolo-v3). I re-implemented it in PyTorch for better readability and re-useablity.
@@ -112,7 +113,7 @@ I've implemented `prepare_train_dataset` in `dataset.py` to prepare COCO dataloa
 
 ### Evaluation demo
 
-![](https://raw.githubusercontent.com/ECer23/yolov3.pytorch/master/assets/dets/dog.jpg)
+![](https://github.com/ECer23/yolov3.pytorch/raw/master/assets/results/000000397133.jpg)
 
 ## TODO
 

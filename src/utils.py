@@ -94,7 +94,7 @@ def IoU(box1, box2, format='corner'):
   return inter_area / (b1_area + b2_area - inter_area)
 
 
-def draw_detection(img_path, detection, reso, dets_dir=None, save=False):
+def draw_detection(img_path, detection, reso):
   """Draw detection result
 
   @Args
@@ -102,14 +102,11 @@ def draw_detection(img_path, detection, reso, dets_dir=None, save=False):
     detection: (np.array) detection result, with size [#bbox, 8]
       8 = [batch_idx, top-left x, top-left y, bottom-right x, bottom-right y, objectness, conf, class idx]
     reso: (int) image resolution
-    dets_dir: (str) detection result save path
-    save: (bool) whether to save detection result
 
   @Returns
     img: (Pillow.Image) detection result
   """
   class_names = config.datasets['coco']['class_names']
-  img_name = img_path.split('/')[-1]
 
   img = Image.open(img_path)
   w, h = img.size
@@ -126,9 +123,6 @@ def draw_detection(img_path, detection, reso, dets_dir=None, save=False):
     x1, y1, x2, y2 = bbox[0], bbox[1], bbox[2], bbox[3]
     draw.rectangle(((x1 * w_ratio, y1 * h_ratio, x2 * w_ratio, y2 * h_ratio)), outline='red')
     draw.text((x1 * w_ratio, y1 * h_ratio), caption, fill='red')
-
-  if save == True:
-    img.save(opj(dets_dir, img_name))
 
   return img
 
@@ -198,11 +192,152 @@ def save_checkpoint(checkpoint_dir, epoch, save_dict):
     raise Exception(emojify("Fail to save checkpoint :sob:"))
 
 
-def activate_offsets():
-  """Transform raw offsets to true offsets
+def mAP(preds, gts, reso):
+  """Compute mAP between prediction and ground truth
 
   @Args
-  
+    preds: (Tensor) with size [num_bboxes, 8=[batch idx, x1, y1, x2, y2, p0, conf, label]]
+    gts: (Tensor) with size [bs, num_bboxes, 5=[xc, yc, w, h, label]]
+    reso: (int) inputs resolution
 
+  @Variables
+    bs: (int) batch size
+    nB: (int) number of boxes
+
+  @Returns
+    mAPs: (list)
   """
-  pass
+  mAPs = []
+
+  for batch_idx in range(gts.size(0)):
+    if gts[batch_idx, ...].sum() == 0:
+      mAPs.append(0)
+      continue
+
+    correct = []
+    detected = []
+
+    # FIXME: modify gt label format
+    # filter dummy gts
+    gt_batch = gts[batch_idx, ...]
+    non_zero_mask = torch.nonzero(gt_batch)
+    non_zero_idx = non_zero_mask[-1, 0]
+    gt_batch = gt_batch[0:non_zero_idx+1]
+
+    gt_bboxes = transform_coord(gt_batch[:, :4]) * reso
+    gt_labels = gt_batch[:, 4]
+    
+    try:
+      pred_batch = preds[preds[..., 0] == batch_idx]
+    except Exception:  # no prediction
+      mAPs.append(0)
+      break
+
+    if pred_batch.size(0) == 0:
+      correct.append(0)
+      continue
+
+    # sort pred by confidence
+    _, indices = torch.sort(pred_batch[:, -2], descending=True)
+    pred_batch = pred_batch[indices]
+
+    for pred in pred_batch:
+      pred_bbox = pred[1:5]
+      pred_label = pred[-1]
+      iou = IoU(pred_bbox.unsqueeze(0), gt_bboxes)
+      _, indices = torch.sort(iou, descending=True)
+      best_idx = indices[0]
+      # TODO: iou thresh as variblae (0.5)
+      if iou[best_idx] > 0.5 and pred_label == gt_labels[best_idx] and best_idx not in detected:
+        correct.append(1)
+        detected.append(best_idx)
+      else:
+        correct.append(0)
+
+    AP = ap_per_class(tp=correct, conf=pred_batch[:, -2], pred_cls=pred_batch[:, -1], target_cls=gt_labels)
+    mAP = AP.mean()
+    mAPs.append(mAP)
+
+  return mAPs
+
+
+def ap_per_class(tp, conf, pred_cls, target_cls):
+  """ Compute the average precision, given the recall and precision curves.
+  TODO: translate???
+  Method originally from https://github.com/rafaelpadilla/Object-Detection-Metrics.
+  # Arguments
+      tp:    True positives (list).
+      conf:  Objectness value from 0-1 (list).
+      pred_cls: Predicted object classes (list).
+      target_cls: True object classes (list).
+  # Returns
+      The average precision as computed in py-faster-rcnn.
+  """
+
+  # lists/pytorch to numpy
+  tp, conf, pred_cls, target_cls = np.array(tp), np.array(conf), np.array(pred_cls), np.array(target_cls)
+
+  # Sort by objectness
+  i = np.argsort(-conf)
+  tp, conf, pred_cls = tp[i], conf[i], pred_cls[i]
+
+  # Find unique classes
+  unique_classes = np.unique(np.concatenate((pred_cls, target_cls), 0))
+
+  # Create Precision-Recall curve and compute AP for each class
+  ap = []
+  for c in unique_classes:
+    i = pred_cls == c
+    n_gt = sum(target_cls == c)  # Number of ground truth objects
+    n_p = sum(i)  # Number of predicted objects
+
+    if (n_p == 0) and (n_gt == 0):
+      continue
+    elif (np == 0) and (n_gt > 0):
+      ap.append(0)
+    elif (n_p > 0) and (n_gt == 0):
+      ap.append(0)
+    else:
+      # Accumulate FPs and TPs
+      fpa = np.cumsum(1 - tp[i])
+      tpa = np.cumsum(tp[i])
+
+      # Recall
+      recall = tpa / (n_gt + 1e-16)
+
+      # Precision
+      precision = tpa / (tpa + fpa)
+
+      # AP from recall-precision curve
+      ap.append(compute_ap(recall, precision))
+
+  return np.array(ap)
+
+
+def compute_ap(recall, precision):
+  """Compute the average precision, given the recall and precision curves.
+  TODO: translate
+  Code originally from https://github.com/rbgirshick/py-faster-rcnn.
+  # Arguments
+      recall:    The recall curve (list).
+      precision: The precision curve (list).
+  # Returns
+      The average precision as computed in py-faster-rcnn.
+  """
+  # correct AP calculation
+  # first append sentinel values at the end
+
+  mrec = np.concatenate(([0.], recall, [1.]))
+  mpre = np.concatenate(([0.], precision, [0.]))
+
+  # compute the precision envelope
+  for i in range(mpre.size - 1, 0, -1):
+    mpre[i - 1] = np.maximum(mpre[i - 1], mpre[i])
+
+  # to calculate area under PR curve, look for points
+  # where X axis (recall) changes value
+  i = np.where(mrec[1:] != mrec[:-1])[0]
+
+  # and sum (\Delta recall) * prec
+  ap = np.sum((mrec[i + 1] - mrec[i]) * mpre[i + 1])
+  return ap

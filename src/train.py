@@ -20,20 +20,20 @@ def parse_arg():
   parser = argparse.ArgumentParser(description='YOLO v3 training')
   parser.add_argument('--reso', default=416, type=int, help="Input image resolution")
   parser.add_argument('--lr', default=1e-3, type=float, help="Learning rate")
-  parser.add_argument('--batch', default=16, type=int, help="Batch size")
+  parser.add_argument('--batch', default=20, type=int, help="Batch size")
   parser.add_argument('--dataset', default='coco', choices=['tejani', 'coco'], type=str, help="Dataset name")
   parser.add_argument('--epoch', default=0, type=int, help="Start epoch of training")
+  parser.add_argument('--save', action='store_true', help="Save image during training")
   return parser.parse_args()
 
 
 args = parse_arg()
 cfg = config.network[args.dataset]['cfg']
-weights = config.network[args.dataset]['weights']
 log_dir = opj(config.LOG_ROOT, get_current_time())
 writer = SummaryWriter(log_dir=log_dir)
 
 
-def train(epoch, trainloader, yolo, lr):
+def train(epoch, trainloader, yolo, lr, save_img=True):
   """Training wrapper
 
   @Args
@@ -43,52 +43,54 @@ def train(epoch, trainloader, yolo, lr):
     lr: (float) learning rate
   """
   optimizer = optim.SGD(yolo.parameters(), lr=lr, momentum=0.9, weight_decay=5e-4)
-  tbar = tqdm(trainloader, ncols=100)
+  tbar = tqdm(trainloader, ncols=80)
   for batch_idx, (names, inputs, targets) in enumerate(tbar):
     optimizer.zero_grad()
 
     global_step = batch_idx + epoch*len(trainloader)
     inputs, targets = inputs.cuda(), targets.cuda()
     detections = yolo(inputs)
-    tbar.set_description('%d' % detections.size(0))
-    if detections.size(0) < inputs.size(0) / 2:
-      raise Exception(emojify("Detection disappeared :scream:"))
 
-    loss, correct_num, total_num = yolo.loss(targets)
+    loss, cache = yolo.loss(targets)
 
-    writer.add_scalar('loss/total', loss['total'], global_step)
-    writer.add_scalar('loss/coord', loss['coord'], global_step)
+    writer.add_scalar('loss/x', loss['x'], global_step)
+    writer.add_scalar('loss/y', loss['y'], global_step)
+    writer.add_scalar('loss/w', loss['w'], global_step)
+    writer.add_scalar('loss/h', loss['h'], global_step)
     writer.add_scalar('loss/conf', loss['conf'], global_step)
     writer.add_scalar('loss/cls', loss['cls'], global_step)
+    writer.add_scalar('loss/total', loss['total'], global_step)
 
     loss['total'].backward()
+    # tbar.set_description('%d/%d' % (cache['nM'], cache['total_num']))
     optimizer.step()
 
-    if batch_idx % 50 == 0:
-      # TODO: train_root format
-      if args.dataset == 'coco':
-        img_path = opj(config.datasets[args.dataset]['train_root'], 'train2017', names[0])
-      else:
-        img_path = opj(config.datasets[args.dataset]['train_root'], 'JPEGImages', names[0])
+    if save_img == True:
+      if detections.size(0) < inputs.size(0) / 2:
+        print(emojify("\nDetection disappeared :scream:\n"))
+        continue
 
-      detection = detections[detections[:, 0] == 0]
-      img = draw_detection(img_path, detection, yolo.reso)
-      img_tensor = utils.make_grid(transforms.ToTensor()(img))
-      writer.add_image('image', img_tensor, global_step)
+      if batch_idx % 1 == 0:
+        # TODO: train_root format
+        if args.dataset == 'coco':
+          img_path = opj(config.datasets[args.dataset]['train_root'], 'train2017', names[0])
+        else:
+          img_path = opj(config.datasets[args.dataset]['train_root'], 'JPEGImages', names[0])
 
-
-def val(batch_idx):
-  """Validation wrapper"""
-  pass
+        detection = detections[detections[:, 0] == 0]
+        img = draw_detection(img_path, detection, yolo.reso)
+        img_tensor = utils.make_grid(transforms.ToTensor()(img))
+        writer.add_image('image', img_tensor, global_step)
 
 
 if __name__ == '__main__':
   print(emojify("\n==> Parsing arguments :hammer:\n"))
+  assert args.reso % 32 == 0, emojify("Resolution must be interger times of 32 :shit:")
   for arg in vars(args):
     print(arg, ':', getattr(args, arg))
   print("log_dir :", log_dir)
 
-  print(emojify("\n==> Prepare Data :coffee:\n"))
+  print(emojify("\n==> Preparing Data :coffee:\n"))
   img_datasets, dataloader = prepare_train_dataset(args.dataset, args.reso, args.batch)
   print("# Training images:", len(img_datasets))
 
@@ -96,14 +98,15 @@ if __name__ == '__main__':
   yolo = YOLOv3(cfg, args.reso).cuda()
   start_epoch = args.epoch
   best_mAP = 0
-  if start_epoch > 0:
+  if start_epoch != 0:
     start_epoch, best_mAP, state_dict = load_checkpoint(opj(config.CKPT_ROOT, args.dataset), start_epoch)
     yolo.load_state_dict(state_dict)
+  print("Model starts training from epoch %d" % start_epoch)
 
   print(emojify("\n==> Training :seedling:\n"))
   yolo.train()
   for epoch in range(start_epoch, start_epoch+20):
-    train(epoch, dataloader, yolo, args.lr)
+    train(epoch, dataloader, yolo, args.lr, args.save)
     if epoch % 5 == 4:  # save every 4 epochs
       save_dict = {
         'mAP': 0,

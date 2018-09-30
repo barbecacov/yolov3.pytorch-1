@@ -12,9 +12,8 @@ class YOLOv3(nn.Module):
   """YOLO v3 model
 
   @Args
-
-  cfgfile: (str) path to yolo v3 config file  
-  reso: (int) original image resolution  
+    cfgfile: (str) path to yolo v3 config file  
+    reso: (int) original image resolution  
   """
 
   def __init__(self, cfgfile, reso):
@@ -29,12 +28,10 @@ class YOLOv3(nn.Module):
     """Build YOLOv3 model from building blocks
 
     @Args
-
-    blocks: (list) list of building blocks description
+      blocks: (list) list of building blocks description
 
     @Returns
-
-    module_list: (nn.ModuleList) module list of neural network
+      module_list: (nn.ModuleList) module list of neural network
     """
     module_list = nn.ModuleList()
     in_channels = 3  # start from RGB 3 channels
@@ -134,7 +131,7 @@ class YOLOv3(nn.Module):
       TODO: cache ?  
 
     @Returns
-      detections: (Tensor) detection result with size [num_bboxes, [batch idx, x1, x2, y1, y2, p0, max conf, class idx]]
+      detections: (Tensor) detection result with size [num_bboxes, [batch idx, x1, y1, x2, y2, p0, conf, label]]
     """
     detections = torch.Tensor()  # detection results
     outputs = dict()   # output cache for route layer
@@ -176,35 +173,22 @@ class YOLOv3(nn.Module):
 
     return detections
 
-  def loss(self, y_true, lambda_coord=1, lambda_non_coord=0.1):
+  def loss(self, y_true):
     """Compute loss
 
     @Args
+      # FIXME: y_true's format!!!!!!!!!
+      y_true: (Tensor) annotations with size [bs, num_bboxes, 5=(xc, yc, w, h, label_id)]
 
-    y_true: (Tensor) annotations with size 
-      [B, num_bboxes, 5=(xc, yc, w, h, label_id)]
-
-    Variables
-    --
-    y_pred: (Tensor) raw detections with size
-      [batch_size, (5=(tx,ty,tw,th,p_obj)+num_classes)*3=(num_anchors), grid_size, grid_size]
+    @Variables
+      y_pred: (Tensor) raw detections with size [bs, (5=(tx,ty,tw,th,p_obj)+num_classes)*3=(num_anchors), grid_size, grid_size]
     """
     losses = defaultdict(float)
-    correct_nums, total_nums = 0, 0
     for i, y_pred in self.cache.items():
       block = self.blocks[i]
       assert block['type'] == 'yolo'
-      loss, correct_num, total_num = self.module_list[i][0].loss(y_pred, y_true.clone())
-      correct_nums += correct_num
-      total_nums += total_num
+      loss, cache = self.module_list[i][0].loss(y_pred, y_true.clone())
       for name in loss.keys():
-        if name == 'conf':
-          losses['conf'] += lambda_non_coord * loss[name]
-        elif name == 'cls':
-          losses['cls'] += lambda_non_coord * loss[name]
-        else:
-          losses['coord'] += lambda_coord * loss[name]
-
-    losses['total'] = losses['conf'] + losses['cls'] + losses['coord']
-
-    return losses, correct_nums, total_nums
+        losses[name] += loss[name]
+        losses['total'] += loss[name]
+    return losses, cache

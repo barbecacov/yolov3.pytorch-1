@@ -106,117 +106,115 @@ class DetectionLayer(nn.Module):
     return detections
 
   def loss(self, y_pred, y_true):
-    """Loss function for detection result
-    1. Prepare data format
-    2. Built gt [tx, ty, tw, th] and masks  TODO: Forward loss computation?
-    3. Compute loss
-
+    """Compute loss
+    
     @Args
-      y_pred: (Tensor) raw offsets predicted feature map with size
-        [B, ([tx, ty, tw, th, p_obj]+num_classes)*num_anchors, grid_size, grid_size]
-      y_true: (Tensor) scaled to (0,1) true offsets annotations with size
-        [B, num_bboxes, [xc, yc, w, h] + label_id]
-      lambda_coord: (float) coordinates loss weights
-
-    @Varibles TODO: explain parameters in function
-      mask: 
-      conf_mask:
-      cls_mask:
-      conf_obj:
-      gt_box_shape:
-      gt_cls:
-      anchor_bboxes:
-      gt_bbox: (Tensor) true bbox scaled to grid's size, with size [xc, yc, w, h]
+      # FIXME: y_true's format!!!!!!!!!
+      y_pred: (Tensor) raw offsets predicted feature map with size [bs, ([tx, ty, tw, th, p_obj]+nC)*nA, nG, nG]
+      y_true: (Tensor) scaled to (0,1) true offsets annotations with size [bs, nB, [xc, yc, w, h] + label_id]
+    
+    @Returns
+      y_true: (Tensor)
+    
+    @Variables  TODO: rename variables
+      bs: (int) batch size
+      nA: (int) number of anchors
+      gs: (int) grid size
+      nB: (int) number of bboxes
     """
     loss = dict()
-    correct_num = 0
-    total_num = 0
 
     # 1. Prepare
     # 1.1 re-organize y_pred
-    # [B, (5+num_classes) * num_anchors, grid_size, grid_size]
-    # => [B, num_anchors, grid_size, grid_size, 5+num_classes]
-    batch_size, _, grid_size, _ = y_pred.size()
-    num_anchors = len(self.anchors)
-    num_attrs = 5 + self.num_classes
-    y_pred = y_pred.view(batch_size, num_anchors, num_attrs, grid_size, grid_size)
+    # [bs, (5+nC)*nA, gs, gs] => [bs, num_anchors, gs, gs, 5+nC]
+    bs, _, gs, _ = y_pred.size()
+    nB = y_true.size(1)
+    nA = len(self.anchors)
+    nC = self.num_classes
+    y_pred = y_pred.view(bs, nA, 5+nC, gs, gs)
     y_pred = y_pred.permute(0, 1, 3, 4, 2)
-    y_pred_activate = self.cache['detections'].view(batch_size, grid_size, grid_size, num_anchors, num_attrs)
-    y_pred_activate = y_pred_activate.permute(0, 3, 1, 2, 4)
 
     # 1.2 scale bbox relative to feature map
-    y_true[..., :4] *= grid_size
+    y_true[..., :4] *= gs
 
     # 1.3 prepare anchor boxes
-    stride = self.reso // grid_size
+    stride = self.reso // gs
     anchors = [(a[0]/stride, a[1]/stride) for a in self.anchors]
     anchor_bboxes = torch.zeros(3, 4).cuda()
     anchor_bboxes[:, 2:] = torch.Tensor(anchors)
 
-    # TODO: vectorize
     # 2. Build gt [tx, ty, tw, th] and masks
-    gt_tx = torch.zeros(batch_size, num_anchors, grid_size, grid_size).cuda()
-    gt_ty = torch.zeros(batch_size, num_anchors, grid_size, grid_size).cuda()
-    gt_tw = torch.zeros(batch_size, num_anchors, grid_size, grid_size).cuda()
-    gt_th = torch.zeros(batch_size, num_anchors, grid_size, grid_size).cuda()
-    gt_obj = torch.zeros(batch_size, num_anchors, grid_size, grid_size).cuda()
-    gt_cls = torch.zeros(batch_size, num_anchors, grid_size, grid_size, self.num_classes).cuda()
-    mask = torch.zeros(batch_size, num_anchors, grid_size, grid_size).cuda()
-    conf_mask = torch.ones(batch_size, num_anchors, grid_size, grid_size).cuda()
-    cls_mask = torch.ones(batch_size, num_anchors, grid_size, grid_size, self.num_classes).cuda()
-    for batch_idx in range(batch_size):
-      for box_idx in range(y_true.size(1)):
+    # TODO: f1 score implementation
+    total_num = 0
+    gt_tx = torch.zeros(bs, nA, gs, gs).cuda()
+    gt_ty = torch.zeros(bs, nA, gs, gs).cuda()
+    gt_tw = torch.zeros(bs, nA, gs, gs).cuda()
+    gt_th = torch.zeros(bs, nA, gs, gs).cuda()
+    obj_mask = torch.ByteTensor(bs, nA, gs, gs).fill_(0).cuda()
+    cls_mask = torch.ByteTensor(bs, nA, gs, gs, nC).fill_(0).cuda()
+    for batch_idx in range(bs):
+      for box_idx in range(nB):
+        if y_true[batch_idx, box_idx, ...].sum() == 0:  # redundancy label
+          break
+
+        total_num += 1
         y_true_one = y_true[batch_idx, box_idx, ...]
         gt_bbox = y_true_one[:4]
         gt_cls_label = int(y_true_one[4])
-        if y_true_one.sum() == 0:  # redundancy label
-          break
-        else:
-          total_num += 1
 
-        gt_xc, gt_yc = int(gt_bbox[0]), int(gt_bbox[1])
-        gt_w, gt_h = gt_bbox[2], gt_bbox[3]
-
-        # find resposible anchor box in current cell
+        gt_xc, gt_yc, gt_w, gt_h = gt_bbox[0:4]
+        gt_i, gt_j = int(gt_xc), int(gt_yc)
         gt_box_shape = torch.Tensor([0, 0, gt_w, gt_h]).unsqueeze(0).cuda()
         anchor_ious = IoU(gt_box_shape, anchor_bboxes, format='center')
-        conf_mask[batch_idx, anchor_ious > self.ignore_thresh] = 0
         best_anchor = np.argmax(anchor_ious)
         anchor_w, anchor_h = anchors[best_anchor]
-        gt_tw[batch_idx, best_anchor, gt_xc, gt_yc] = math.log(gt_w / anchor_w + 1e-5)
-        gt_th[batch_idx, best_anchor, gt_xc, gt_yc] = math.log(gt_h / anchor_h + 1e-5)
-        gt_tx[batch_idx, best_anchor, gt_xc, gt_yc] = gt_bbox[0] - gt_xc
-        gt_ty[batch_idx, best_anchor, gt_xc, gt_yc] = gt_bbox[1] - gt_yc
-        mask[batch_idx, best_anchor, gt_xc, gt_yc] = 1
-        cls_mask[batch_idx, best_anchor, gt_xc, gt_yc, :] = 1
-        conf_mask[batch_idx, best_anchor, gt_xc, gt_yc] = 1
-        gt_obj[batch_idx, best_anchor, gt_xc, gt_yc] = 1
-        gt_cls[batch_idx, best_anchor, gt_xc, gt_yc, gt_cls_label] = 1
 
-        gt_bbox = gt_bbox.unsqueeze(0).cuda()
-        pred_bbox = y_pred_activate[batch_idx, best_anchor, gt_xc, gt_yc, :4].unsqueeze(0).cuda()
-        pred_bbox /= stride
-        iou = IoU(pred_bbox, gt_bbox, format='center')
-        if iou > 0.5:
-          correct_num += 1
+        gt_tw[batch_idx, best_anchor, gt_i, gt_j] = torch.log(gt_w / anchor_w + 1e-16)
+        gt_th[batch_idx, best_anchor, gt_i, gt_j] = torch.log(gt_h / anchor_h + 1e-16)
+        gt_tx[batch_idx, best_anchor, gt_i, gt_j] = gt_xc - gt_i
+        gt_ty[batch_idx, best_anchor, gt_i, gt_j] = gt_yc - gt_j
 
-    # 3. Compute loss
-    # 3.1 coordinates loss
+        obj_mask[batch_idx, best_anchor, gt_i, gt_j] = 1
+        cls_mask[batch_idx, best_anchor, gt_i, gt_j, gt_cls_label] = 1
+
+    # 3. activate raw y_pred
     pred_tx = torch.sigmoid(y_pred[..., 0])  # gt tx/ty are not deactivated
     pred_ty = torch.sigmoid(y_pred[..., 1])
     pred_tw = y_pred[..., 2]
     pred_th = y_pred[..., 3]
-    loss['x'] = nn.MSELoss()(pred_tx * mask, gt_tx * mask)
-    loss['y'] = nn.MSELoss()(pred_ty * mask, gt_ty * mask)
-    loss['w'] = nn.MSELoss()(pred_tw * mask, gt_tw * mask) / 2
-    loss['h'] = nn.MSELoss()(pred_th * mask, gt_th * mask) / 2
-    # 3.2 confidence loss
-    pred_obj = torch.sigmoid(y_pred[..., 4])  # objectness score
-    pred_cls = torch.sigmoid(y_pred[..., 5:])  # class score
-    loss['conf'] = nn.MSELoss()(pred_obj * conf_mask, gt_obj * conf_mask)
-    loss['cls'] = nn.MSELoss()(pred_cls * cls_mask, gt_cls * cls_mask)
-    
-    return loss, correct_num, total_num
+    pred_conf = y_pred[..., 4]
+    pred_cls = y_pred[..., 5:]
+
+    # 4. Compute loss
+    cls_mask = cls_mask[obj_mask]
+    nM = obj_mask.sum().float()  # number of anchors (assigned to targets)]
+    k = nM / total_num
+
+    MSELoss = nn.MSELoss(size_average=True)
+    BCEWithLogitsLoss = nn.BCEWithLogitsLoss(size_average=True)
+    CrossEntropyLoss = nn.CrossEntropyLoss()
+
+    if nM > 0:
+      loss['x'] = k * MSELoss(pred_tx[obj_mask], gt_tx[obj_mask])
+      loss['y'] = k * MSELoss(pred_ty[obj_mask], gt_ty[obj_mask])
+      loss['w'] = k * MSELoss(pred_tw[obj_mask], gt_tw[obj_mask])
+      loss['h'] = k * MSELoss(pred_th[obj_mask], gt_th[obj_mask])
+      loss['conf'] = k * BCEWithLogitsLoss(pred_conf, obj_mask.float())
+      loss['cls'] = k * CrossEntropyLoss(pred_cls[obj_mask], torch.argmax(cls_mask, 1))
+      # loss['cls'] = k * BCEWithLogitsLoss(pred_cls[obj_mask], cls_mask.float())
+    else:
+      loss['x'] = 0
+      loss['y'] = 0
+      loss['w'] = 0
+      loss['h'] = 0
+      loss['conf'] = 0
+      loss['cls'] = 0
+
+    cache = dict()
+    cache['nM'] = nM
+    cache['total_num'] = total_num
+
+    return loss, cache
 
 
 class NMSLayer(nn.Module):
@@ -233,7 +231,7 @@ class NMSLayer(nn.Module):
 
   """
 
-  def __init__(self, conf_thresh=0.8, nms_thresh=0.4):
+  def __init__(self, conf_thresh=0.5, nms_thresh=0.4):
     super(NMSLayer, self).__init__()
     self.conf_thresh = conf_thresh
     self.nms_thresh = nms_thresh

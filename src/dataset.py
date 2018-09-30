@@ -14,7 +14,7 @@ opj = os.path.join
 import config
 
 
-class TestDataset(torch.utils.data.dataset.Dataset):
+class DemoDataset(torch.utils.data.dataset.Dataset):
   """Dataset for evaluataion"""
 
   def __init__(self, imgs_dir, transform):
@@ -28,8 +28,7 @@ class TestDataset(torch.utils.data.dataset.Dataset):
     self.transform = transform
 
   def get_path(self, index):
-    """
-    Get image path
+    """Get image path
 
     @Args
       index: (int)
@@ -73,6 +72,9 @@ class CocoDataset(CocoDetection):
     for i in range(len(target)):
       target_tensor[i, :4] = torch.Tensor(target[i]['bbox'])
       target_tensor[i, 4] = config.datasets['coco']['category_id_mapping'][int(target[i]['category_id'])]
+      # TODO: comment!
+      target_tensor[i, 0] += target_tensor[i, 2] / 2
+      target_tensor[i, 1] += target_tensor[i, 3] / 2
       target_tensor[i, 0] /= w
       target_tensor[i, 2] /= w
       target_tensor[i, 1] /= h
@@ -161,11 +163,11 @@ class SixdDataset(torch.utils.data.dataset.Dataset):
   def __getitem__(self, index):
     """    
     @Args
-    
+
     index: (int) item index
 
     @Returns
-    
+
     img_tensor: (Tensor) Tensor with size [C, H, W]
     img_anno: (Tensor) corresponding annotation with size [15, 5]
     img_name: (str) image name
@@ -183,8 +185,8 @@ class SixdDataset(torch.utils.data.dataset.Dataset):
     return len(self.img_names)
 
 
-def prepare_test_dataset(path, reso, batch_size=1):
-  """Prepare dataset for evaluation
+def prepare_demo_dataset(path, reso, batch_size=1):
+  """Prepare dataset for demo
 
   @Args
     path: (str) path to images
@@ -192,7 +194,7 @@ def prepare_test_dataset(path, reso, batch_size=1):
     batch_size: (int) default 1
 
   @Returns
-    img_datasets: (torchvision.datasets) test image datasets
+    img_datasets: (torchvision.datasets) demo image datasets
     dataloader: (DataLoader)
   """
   transform = transforms.Compose([
@@ -200,42 +202,59 @@ def prepare_test_dataset(path, reso, batch_size=1):
       transforms.ToTensor()
   ])
 
-  img_datasets = TestDataset(path, transform)
+  img_datasets = DemoDataset(path, transform)
   dataloader = torch.utils.data.DataLoader(img_datasets, batch_size=batch_size, num_workers=4)
 
   return img_datasets, dataloader
 
 
 def prepare_train_dataset(name, reso, batch_size=32):
-  """
-  Prepare dataset for training/validation
+  """Prepare dataset for training
 
-  @Args
-  
-  name: (str) dataset name [tejani, hinter]
-  reso: (int) training/validation image resolution
-  batch_size: (int) default 1
+  @Args  
+    name: (str) dataset name [coco]
+    reso: (int) training image resolution
+    batch_size: (int) default 32
 
   @Returns
-  
-  trainloader, valloader: (Dataloader) dataloader for training and validation
+    img_datasets: (CocoDataset) image datasets
+    trainloader: (Dataloader) dataloader for training
   """
   transform = transforms.Compose([
       transforms.Resize(size=(reso, reso), interpolation=3),
       transforms.ToTensor()
   ])
 
-  train_root = config.datasets[name]['train_root']
-
   if name == 'coco':
-    img_datasets = CocoDataset(
-        root=opj(train_root, 'train2017'),
-        annFile=opj(train_root, 'annotations/instances_train2017.json'),
-        transform=transform
-    )
-  else:
-    img_datasets = SixdDataset(train_root, 'train.txt', transform=transform)
+    path = config.datasets[name]
+    img_datasets = CocoDataset(root=path['train_root'], annFile=path['train_anno'], transform=transform)
 
   dataloder = torch.utils.data.DataLoader(img_datasets, batch_size=batch_size, num_workers=4, shuffle=True)
+
+  return img_datasets, dataloder
+
+
+def prepare_val_dataset(name, reso, batch_size=32):
+  """Prepare dataset for validation
+
+  @Args  
+    name: (str) dataset name [tejani, hinter]
+    reso: (int) validation image resolution
+    batch_size: (int) default 32
+
+  @Returns
+    img_datasets: (CocoDataset)
+    dataloader: (Dataloader)
+  """
+  transform = transforms.Compose([
+      transforms.Resize(size=(reso, reso), interpolation=3),
+      transforms.ToTensor()
+  ])
+
+  if name == 'coco':
+    path = config.datasets[name]
+    img_datasets = CocoDataset(root=path['val_root'], annFile=path['val_anno'], transform=transform)
+
+  dataloder = torch.utils.data.DataLoader(img_datasets, batch_size=batch_size, num_workers=4)
 
   return img_datasets, dataloder

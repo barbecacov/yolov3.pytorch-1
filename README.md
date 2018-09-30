@@ -41,7 +41,7 @@ This repository contains code for a object detector based on [YOLOv3: An Increme
 
 ## Train
 
-### How to run this code
+### How to train the model
 
 1. Download [COCO detection](http://cocodataset.org/#download) dataset and annotions, or prepare your own dataset follow the instructions in [Train on custom dataset](https://github.com/ECer23/yolov3.pytorch#train-on-custom-dataset)
 2. Provide information of dataset in `config.py`
@@ -84,16 +84,31 @@ I've implemented `prepare_train_dataset` in `dataset.py` to prepare COCO dataloa
 
 ## Evaluation
 
-### How to run demo
+### How to evaluate
 
 1. Download official pretrained YOLO v3 checkpoint [here](https://pjreddie.com/media/files/yolov3.weights)
 2. Transform it by running `python checkpoints/coco/transform.py` to transform it to pytorch readable checkpoint file `-1.ckpt`
-3. Run `python src/demo.py`
-4. You can sepcify detection images directory and detection results directory in `config.py`'s ``
+3. Run `python src/evaluate.py`, it will evaluate the validation sets you specify in `config.py` and compute the mAP. Validation results will be saved in `assets/results`
+4. (optional) You can also detect your own images by running `python demo.py`. Just specify the images folder in `config.py`
+    ```python
+    demo = {
+      'images_dir': opj(ROOT, 'assets/imgs'),
+      'result_dir': opj(ROOT, 'assets/dets')
+    }
+    ```
 
 ### Input arguments
 
-* `--reso`, image resolution. Image will be resize to `(reso, reso)` during evaluation. The higher resolution is, the more accurate the detection
+* `--reso`, image resolution. Image will be resize to `(reso, reso)` during validation. The higher resolution is, the more accurate the detection
+* `--batch`, batch size
+* `--dataset`, validation dataset name
+* `--epoch`, checkpoint epoch, -1 for official pretrained YOLO v3.
+
+### Evaluation results
+
+| Dataset name | mAP |
+|---|---|
+| COCO 2017 | 63.358% |
 
 ### Evaluation demo
 
@@ -108,7 +123,7 @@ I've implemented `prepare_train_dataset` in `dataset.py` to prepare COCO dataloa
   - [x] ~~Loss function implementation~~
   - [x] ~~Visualize training process~~
   - [ ] Use pre trained ImageNet Darknet
-  - [x] Validation
+  - [x] ~~Validation~~
   - [ ] Tutorials of training from scratch
 
 ### Not important

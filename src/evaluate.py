@@ -47,7 +47,7 @@ def val(valloader, yolo, save_img=True):
     tbar.set_description("mAP=%.2f%%" % (np.mean(mAPs) * 100))
 
     if save_img == True:
-      img_path = opj(config.datasets[args.dataset]['train_root'], 'train2017', names[0])
+      img_path = opj(config.datasets[args.dataset]['val_root'], names[0])
       img_name = img_path.split('/')[-1]
 
       try:
@@ -58,7 +58,8 @@ def val(valloader, yolo, save_img=True):
       else:
         img = draw_detection(img_path, detection, yolo.reso)
 
-      img.save(config.evaluate['result_dir'], img_name)
+      if batch_idx % 20 == 0:
+        img.save(opj(config.evaluate['result_dir'], img_name))
 
   return mAPs
 

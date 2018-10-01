@@ -6,32 +6,6 @@
 
 This repository contains code for a object detector based on [YOLOv3: An Incremental Improvement](https://pjreddie.com/media/files/papers/YOLOv3.pdf), implemented in PyTorch. This repository is based on [ayooshkathuria/pytorch-yolo-v3](https://github.com/ayooshkathuria/pytorch-yolo-v3). I re-implemented it in PyTorch for better readability and re-useablity.
 
-## File Tree
-
-```bash
-.
-├── assets/           # folder of assets
-│   ├── dets/           # evaluation results folder
-│   ├── imgs/           # evaluation images folder
-│   └── demo.gif        # training demo
-├── checkpoints/      # folder of checkpoints
-│   └── coco/           # sub folder for each dataset
-├── lib/              # folder of static file, like .cfg and .weights
-├── log/              # folder of logging files
-│   └── dd.hh.mm/       # sub folder for each run, named with time
-├── scripts/          # folder of scripts
-│   ├── download.sh     # download .weights files
-│   └── evaluate.sh     # run evaluation`
-└── src/              # folder of source file
-    ├── config.py        # configuration file
-    ├── dataset.py       # dataset
-    ├── layers.py        # supported layers for YOLO v3 model
-    ├── model.py         # YOLO v3 model
-    ├── test.py          # evaluation code
-    ├── train.py         # training code
-    └── utils.py         # utils function
-```
-
 ## Requirements
 
 * Python 3.6
@@ -48,14 +22,6 @@ This repository contains code for a object detector based on [YOLOv3: An Increme
 2. Provide information of dataset in `config.py`
 3. Run `python train.py`
 4. (optional) Visualize the training process by running `tensorboard --logdir ../log`
-
-### Input Arguments
-
-* `--reso`, image resolution. Image will be resize to `(reso, reso)` during training. The higher resolution is, the more accurate the detection
-* `--lr`, learning rate
-* `--batch`, batch size
-* `--dataset`, training dataset name
-* `--epoch`, start epoch of training
 
 ### Train on custom dataset
 
@@ -97,13 +63,6 @@ I've implemented `prepare_train_dataset` in `dataset.py` to prepare COCO dataloa
       'result_dir': opj(ROOT, 'assets/dets')
     }
     ```
-
-### Input arguments
-
-* `--reso`, image resolution. Image will be resize to `(reso, reso)` during validation. The higher resolution is, the more accurate the detection
-* `--batch`, batch size
-* `--dataset`, validation dataset name
-* `--epoch`, checkpoint epoch, -1 for official pretrained YOLO v3.
 
 ### Evaluation results
 

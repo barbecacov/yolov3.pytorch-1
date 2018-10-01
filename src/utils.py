@@ -217,7 +217,7 @@ def mAP(preds, gts, reso):
     correct = []
     detected = []
 
-    # FIXME: modify gt label format
+    # TODO: modify gt label format
     # filter dummy gts
     gt_batch = gts[batch_idx, ...]
     non_zero_mask = torch.nonzero(gt_batch)

@@ -1,8 +1,8 @@
 # yolov3.pytorch
 
+* 2018/10/01 **❗ATTENTION** Loss function is not working
 * 2018/09/30 **UPDATE** mAP is implemented
-* 2018/09/28 **UPDATE** Loss function is implmented  
-* 2018/09/25 **❗ ATTENTION** This repo is under construction
+* ~~2018/09/28 **UPDATE** Loss function is implmented~~
 
 This repository contains code for a object detector based on [YOLOv3: An Incremental Improvement](https://pjreddie.com/media/files/papers/YOLOv3.pdf), implemented in PyTorch. This repository is based on [ayooshkathuria/pytorch-yolo-v3](https://github.com/ayooshkathuria/pytorch-yolo-v3). I re-implemented it in PyTorch for better readability and re-useablity.
 
@@ -109,7 +109,7 @@ I've implemented `prepare_train_dataset` in `dataset.py` to prepare COCO dataloa
 
 | Dataset name | mAP |
 |---|---|
-| COCO 2017 | 63.358% |
+| COCO 2017 (official pre-trained weights) | 63.358% |
 
 ### Evaluation demo
 
@@ -120,10 +120,10 @@ I've implemented `prepare_train_dataset` in `dataset.py` to prepare COCO dataloa
 ### Important
 
 - [x] ~~Evaluation on image~~
-- [ ] Training on user specified datasets
-  - [x] ~~Loss function implementation~~
+- [ ] Training on user custom datasets
+  - [ ] Loss function implementation
   - [x] ~~Visualize training process~~
-  - [ ] Use pre trained ImageNet Darknet
+  - [ ] Use pre trained Darknet model to train on custom datasets
   - [x] ~~Validation~~
   - [ ] Tutorials of training from scratch
 

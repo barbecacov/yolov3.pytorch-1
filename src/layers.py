@@ -109,7 +109,6 @@ class DetectionLayer(nn.Module):
     """Compute loss
     
     @Args
-      # FIXME: y_true's format!!!!!!!!!
       y_pred: (Tensor) raw offsets predicted feature map with size [bs, ([tx, ty, tw, th, p_obj]+nC)*nA, nG, nG]
       y_true: (Tensor) scaled to (0,1) true offsets annotations with size [bs, nB, [xc, yc, w, h] + label_id]
     

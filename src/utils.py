@@ -42,27 +42,43 @@ def parse_cfg(cfgfile):
   return blocks
 
 
-def transform_coord(bbox):
+def transform_coord(bbox, src='center', dst='corner'):
   """Transform bbox coordinates
     |---------|           (x1,y1) *---------|
     |         |                   |         |
-    |  (x,y)  h      ===>         |         |
+    |  (x,y)  h                   |         |
     |         |                   |         |
     |____w____|                   |_________* (x2,y2)
+       center                         corner
 
   @Args
-    bbox: (Tensor) bbox with size [batch_size, # bboxes, 4]
-      4 => [center x, center y, height, width] 
+    bbox: (Tensor) bbox with size [..., 4]
 
   @Returns
-    bbox_transformed: (Tensor) bbox with size [batch_size, # bboxes, 4]
-      4 => [top-left x, top-left y, right-bottom x, right-bottom y]
+    bbox_transformed: (Tensor) bbox with size [..., 4]
   """
+  flag = False
+  if len(bbox.size()) == 1:
+    bbox = bbox.unsqueeze(0)
+    flag = True
+  
   bbox_transformed = bbox.new(bbox.size())
-  bbox_transformed[..., 0] = (bbox[..., 0] - bbox[..., 2]/2)
-  bbox_transformed[..., 1] = (bbox[..., 1] - bbox[..., 3]/2)
-  bbox_transformed[..., 2] = (bbox[..., 0] + bbox[..., 2]/2)
-  bbox_transformed[..., 3] = (bbox[..., 1] + bbox[..., 3]/2)
+  if src == 'center' and dst == 'corner':    
+    bbox_transformed[..., 0] = (bbox[..., 0] - bbox[..., 2]/2)
+    bbox_transformed[..., 1] = (bbox[..., 1] - bbox[..., 3]/2)
+    bbox_transformed[..., 2] = (bbox[..., 0] + bbox[..., 2]/2)
+    bbox_transformed[..., 3] = (bbox[..., 1] + bbox[..., 3]/2)
+  elif src == 'corner' and dst == 'center':
+    bbox_transformed[..., 0] = (bbox[..., 0] + bbox[..., 2]) /2
+    bbox_transformed[..., 1] = (bbox[..., 1] + bbox[..., 3]) /2
+    bbox_transformed[..., 2] = bbox[..., 2] - bbox[..., 0]
+    bbox_transformed[..., 3] = bbox[..., 3] + bbox[..., 1]
+  else:
+    raise Exception(emojify("format not supported! :shit:"))
+
+  if flag == True:
+    bbox_transformed = bbox_transformed.squeeze(0)
+
   return bbox_transformed
 
 
@@ -226,7 +242,7 @@ def mAP(preds, gts, reso):
 
     gt_bboxes = transform_coord(gt_batch[:, :4]) * reso
     gt_labels = gt_batch[:, 4]
-    
+
     try:
       pred_batch = preds[preds[..., 0] == batch_idx]
     except Exception:  # no prediction

@@ -56,7 +56,7 @@ def val(valloader, yolo, save_img=True):
         print(emojify("\nDetection disappeared :scream:\n"))
         img = Image.open(img_path)
       else:
-        img = draw_detection(img_path, detection, yolo.reso)
+        img = draw_detection(img_path, detection, yolo.reso, type='pred')
 
       if batch_idx % 20 == 0:
         img.save(opj(config.evaluate['result_dir'], img_name))

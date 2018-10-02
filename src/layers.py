@@ -8,7 +8,7 @@ import config
 from utils import IoU, transform_coord
 
 
-class MaxPool1s(nn.Module):
+class MaxPool1s (nn.Module):
   """Max pooling layer with stride 1"""
 
   def __init__(self, kernel_size):
@@ -46,7 +46,6 @@ class DetectionLayer(nn.Module):
     self.num_classes = num_classes
     self.reso = reso
     self.ignore_thresh = ignore_thresh
-    self.cache = dict()
 
   def forward(self, x):
     """
@@ -81,7 +80,7 @@ class DetectionLayer(nn.Module):
     x = x.view(batch_size, num_attrs*num_anchors, grid_size*grid_size)
     x = x.transpose(1, 2).contiguous()
     x = x.view(batch_size, grid_size*grid_size*num_anchors, num_attrs)
-    detections = x.new(x.size())  # detections.size() = [B, 3*13*13, (5+num_classes)]
+    detections = x.new(x.size()).cuda()  # detections.size() = [B, 3*13*13, (5+num_classes)]
 
     # Transform center coordinates
     # x_y_offset = [[0,0]*3, [0,1]*3, [0,2]*3, ..., [12,12]*3]
@@ -97,11 +96,10 @@ class DetectionLayer(nn.Module):
     anchors = torch.FloatTensor(anchors).cuda()
     anchors = anchors.repeat(grid_size*grid_size, 1).unsqueeze(0)
     detections[..., 2:4] = torch.exp(x[..., 2:4]) * anchors  # bwh = pwh * exp(twh)
-    detections[..., :4] *= stride
+    detections[..., :4] *= stride  # TODO: ?
 
     # Softmax
-    detections[..., 4:] = torch.sigmoid((x[..., 4:]))
-    self.cache['detections'] = detections
+    detections[..., 4:] = torch.sigmoid(x[..., 4:])
 
     return detections
 
@@ -154,7 +152,7 @@ class DetectionLayer(nn.Module):
     for batch_idx in range(bs):
       for box_idx in range(nB):
         if y_true[batch_idx, box_idx, ...].sum() == 0:  # redundancy label
-          break
+          continue
 
         total_num += 1
         y_true_one = y_true[batch_idx, box_idx, ...]
@@ -181,7 +179,7 @@ class DetectionLayer(nn.Module):
     pred_ty = torch.sigmoid(y_pred[..., 1])
     pred_tw = y_pred[..., 2]
     pred_th = y_pred[..., 3]
-    pred_conf = y_pred[..., 4]
+    pred_conf = y_pred[..., 4]  # no activation because BCELoss has sigmoid layer
     pred_cls = y_pred[..., 5:]
 
     # 4. Compute loss
@@ -200,7 +198,6 @@ class DetectionLayer(nn.Module):
       loss['h'] = k * MSELoss(pred_th[obj_mask], gt_th[obj_mask])
       loss['conf'] = k * BCEWithLogitsLoss(pred_conf, obj_mask.float())
       loss['cls'] = k * CrossEntropyLoss(pred_cls[obj_mask], torch.argmax(cls_mask, 1))
-      # loss['cls'] = k * BCEWithLogitsLoss(pred_cls[obj_mask], cls_mask.float())
     else:
       loss['x'] = 0
       loss['y'] = 0
@@ -227,7 +224,6 @@ class NMSLayer(nn.Module):
   @Args    
     conf_thresh: (float) fore-ground confidence threshold, default 0.5
     nms_thresh: (float) nms threshold, default 0.4
-
   """
 
   def __init__(self, conf_thresh=0.5, nms_thresh=0.4):
@@ -246,7 +242,7 @@ class NMSLayer(nn.Module):
     batch_size = x.size(0)
     conf_mask = (x[..., 4] > self.conf_thresh).float().unsqueeze(2)
     x = x * conf_mask
-    x[..., :4] = transform_coord(x[..., :4])
+    x[..., :4] = transform_coord(x[..., :4], src='center', dst='corner')
     detections = torch.Tensor()
 
     for idx in range(batch_size):

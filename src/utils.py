@@ -110,14 +110,16 @@ def IoU(box1, box2, format='corner'):
   return inter_area / (b1_area + b2_area - inter_area)
 
 
-def draw_detection(img_path, detection, reso):
+def draw_detection(img_path, detection, reso, type):
   """Draw detection result
 
   @Args
     img_path: (str) path to image
-    detection: (np.array) detection result, with size [#bbox, 8]
-      8 = [batch_idx, top-left x, top-left y, bottom-right x, bottom-right y, objectness, conf, class idx]
+    detection: (np.array) detection result
+      1. (type == 'pred') with size [#bbox, [batch_idx, top-left x, top-left y, bottom-right x, bottom-right y, objectness, conf, class idx]]
+      2. (type == 'gt') with size [#box, [top-left x, top-left y, bottom-right x, bottom-right y]] 
     reso: (int) image resolution
+    type: (str) prediction or ground truth
 
   @Returns
     img: (Pillow.Image) detection result
@@ -131,14 +133,27 @@ def draw_detection(img_path, detection, reso):
   h_ratio, w_ratio
   draw = ImageDraw.Draw(img)
 
-  for i in range(detection.shape[0]):
-    bbox = detection[i, 1:5]
-    label = class_names[int(detection[i, -1])]
-    conf = '%.2f' % detection[i, -2]
-    caption = str(label) + ' ' + str(conf)
-    x1, y1, x2, y2 = bbox[0], bbox[1], bbox[2], bbox[3]
-    draw.rectangle(((x1 * w_ratio, y1 * h_ratio, x2 * w_ratio, y2 * h_ratio)), outline='red')
-    draw.text((x1 * w_ratio, y1 * h_ratio), caption, fill='red')
+  if type == 'pred':
+    for i in range(detection.shape[0]):
+      bbox = detection[i, 1:5]
+      label = class_names[int(detection[i, -1])]
+      conf = '%.2f' % detection[i, -2]
+      caption = str(label) + ' ' + str(conf)
+      x1, y1, x2, y2 = bbox[0], bbox[1], bbox[2], bbox[3]
+      draw.rectangle(((x1 * w_ratio, y1 * h_ratio, x2 * w_ratio, y2 * h_ratio)), outline='red')
+      draw.text((x1 * w_ratio, y1 * h_ratio), caption, fill='red')
+  elif type == 'gt':
+    for i in range(detection.shape[0]):
+      if detection[i, 0:4].sum() == 0:
+        break
+      bbox = transform_coord(detection[i, 0:4], src='center', dst='corner')
+      label = class_names[int(detection[i, -1])]
+      caption = str(label)
+      x1, y1, x2, y2 = bbox[0], bbox[1], bbox[2], bbox[3]
+      draw.rectangle(((x1 * w, y1 * h, x2 * w, y2 * h)), outline='red')
+      draw.text((x1 * w, y1 * h), caption, fill='red')
+  else:
+    raise Exception(emojify("detection type not supported! :shit:"))
 
   return img
 

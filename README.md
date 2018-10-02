@@ -1,6 +1,7 @@
 # yolov3.pytorch
 
-* 2018/10/01 **❗ATTENTION** Loss function is not working
+* 2018/10/02 **UPDATE** Could load pre trained darknet-53 to train from scartch
+* 2018/10/01 **❗ATTENTION** Not sure if loss function is working
 * 2018/09/30 **UPDATE** mAP is implemented
 * ~~2018/09/28 **UPDATE** Loss function is implmented~~
 
@@ -19,9 +20,25 @@ This repository contains code for a object detector based on [YOLOv3: An Increme
 ### How to train the model
 
 1. Download [COCO detection](http://cocodataset.org/#download) dataset and annotions, or prepare your own dataset follow the instructions in [Train on custom dataset](https://github.com/ECer23/yolov3.pytorch#train-on-custom-dataset)
-2. Provide information of dataset in `config.py`
-3. Run `python train.py`
-4. (optional) Visualize the training process by running `tensorboard --logdir ../log`
+2. Download official pre-trained Darknet53 weights on ImageNet [here](https://pjreddie.com/media/files/darknet53.conv.74)
+3. Transform the weights to PyTorch readable file `0.ckpt` by running
+    ```bash
+    $ python model.py
+    ```
+3. Provide information of dataset in `config.py` like
+    ```python
+    'coco': {
+        'num_classes': 80,
+        'train_root': '/media/data_2/COCO/2017/train2017',
+        'train_anno': '/media/data_2/COCO/2017/annotations/instances_train2017.json',
+        'class_names': ['person', ...]
+    }
+    ```
+4. Train the model by running
+    ```bash
+    $ python train.py
+    ```
+5. (optional) Visualize the training process by running `tensorboard --logdir ../log`
 
 ### Train on custom dataset
 
@@ -51,12 +68,24 @@ I've implemented `prepare_train_dataset` in `dataset.py` to prepare COCO dataloa
 
 ## Evaluation
 
-### How to evaluate
+### How to evaluate on COCO
 
-1. Download official pretrained YOLO v3 checkpoint [here](https://pjreddie.com/media/files/yolov3.weights)
-2. Transform it by running `python checkpoints/coco/transform.py` to transform it to pytorch readable checkpoint file `-1.ckpt`
-3. Run `python src/evaluate.py`, it will evaluate the validation sets you specify in `config.py` and compute the mAP. Validation results will be saved in `assets/results`
-4. (optional) You can also detect your own images by running `python demo.py`. Just specify the images folder in `config.py`
+1. Download official pretrained YOLO v3 weights [here](https://pjreddie.com/media/files/yolov3.weights)
+2. Transform it by running `python src/model.py` to transform official pre-trained YOLOv3 on COCO `checkpoints/darknet/yolov3-coco.weights` to pytorch readable checkpoint file `checkpoints/coco/-1.ckpt`
+3. Evaluate on validation sets you specify in `config.py` and compute the mAP by running
+
+    ```bash
+    $ python src/evaluate.py
+    ```
+    
+    Validation results will be saved in `assets/results`
+4. (optional) You can also detect your own images by running
+    
+    ```bash
+    $ python demo.py
+    ```
+
+    Before that you should specify the images folder in `config.py`
     ```python
     demo = {
       'images_dir': opj(ROOT, 'assets/imgs'),
@@ -72,7 +101,7 @@ I've implemented `prepare_train_dataset` in `dataset.py` to prepare COCO dataloa
 
 ### Evaluation demo
 
-![](https://github.com/ECer23/yolov3.pytorch/raw/master/assets/results/000000397133.jpg)
+![](https://github.com/ECer23/yolov3.pytorch/raw/master/assets/results/000000085376.jpg)
 
 ## TODO
 
@@ -80,14 +109,16 @@ I've implemented `prepare_train_dataset` in `dataset.py` to prepare COCO dataloa
 
 - [x] ~~Evaluation on image~~
 - [ ] Training on user custom datasets
-  - [ ] Loss function implementation
+  - [x] ~~Loss function implementation~~
   - [x] ~~Visualize training process~~
-  - [ ] Use pre trained Darknet model to train on custom datasets
+  - [x] ~~Use pre trained Darknet model to train on custom datasets~~
   - [x] ~~Validation~~
-  - [ ] Tutorials of training from scratch
+  - [ ] Evaluate on test-dev
+  - [ ] Train COCO and custom datasets from scratch
 
 ### Not important
 
+- [ ] Data augumentation ?
 - [ ] CPU support
 - [ ] Memory use imporvements
 

@@ -5,6 +5,7 @@ import warnings
 import numpy as np
 from PIL import Image
 import torch.optim as optim
+from termcolor import colored
 from pyemojify import emojify
 from tqdm import tqdm, trange
 from tensorboardX import SummaryWriter
@@ -25,7 +26,7 @@ def parse_arg():
   parser.add_argument('--batch', default=16, type=int, help="Batch size")
   parser.add_argument('--dataset', default='coco', choices=['tejani', 'coco'], type=str, help="Dataset name")
   parser.add_argument('--epoch', default=0, type=int, help="Start epoch of training")
-  parser.add_argument('--save', action='store_true', help="Save image during training")
+  parser.add_argument('--period', default=-1, type=int, help="Trainig result saving period, -1 for not saving")
   return parser.parse_args()
 
 
@@ -35,7 +36,7 @@ log_dir = opj(config.LOG_ROOT, get_current_time())
 writer = SummaryWriter(log_dir=log_dir)
 
 
-def train(epoch, trainloader, yolo, lr, save_img=True):
+def train(epoch, trainloader, yolo, lr, save_period):
   """Training wrapper
 
   @Args
@@ -43,6 +44,7 @@ def train(epoch, trainloader, yolo, lr, save_img=True):
     trainloader: (Dataloader) train data loader 
     yolo: (nn.Module) YOLOv3 model
     lr: (float) learning rate
+    save_period: (int) trainig result saving period
   """
   train_mAP = None
   optimizer = optim.SGD(yolo.parameters(), lr=lr, momentum=0.9, weight_decay=5e-4)
@@ -73,41 +75,45 @@ def train(epoch, trainloader, yolo, lr, save_img=True):
     loss['total'].backward()
     optimizer.step()
 
-    if save_img == True and batch_idx % 5 == 0:
-      img_idx = 0  # idx in a batch
+    with torch.no_grad():
+      if save_period > 0 and batch_idx % save_period == 0:
+        img_idx = 0  # idx in a batch
 
-      if args.dataset == 'coco':
-        img_path = opj(config.datasets[args.dataset]['train_root'], names[img_idx])
+        if args.dataset == 'coco':
+          img_path = opj(config.datasets[args.dataset]['train_root'], names[img_idx])
 
-      try:
-        detection = detections[detections[:, 0] == img_idx]
-        if detection.size(0) == 0:
-          raise Exception
-      except Exception:
-        print(emojify("\nDetection disappeared :scream:"))
-        img = Image.open(img_path)
-      else:
-        img = draw_detection(img_path, detection, yolo.reso)
+        try:
+          detection = detections[detections[:, 0] == img_idx]
+          if detection.size(0) == 0:
+            raise Exception
+        except Exception:
+          print(emojify("\nDetection disappeared :scream:"))
+          pred_img = Image.open(img_path)
+        else:
+          pred_img = draw_detection(img_path, detection.detach().cpu(), yolo.reso, type='pred')
 
-      img_tensor = utils.make_grid(transforms.ToTensor()(img))
-      writer.add_image('image', img_tensor, global_step)
+        gt_img = draw_detection(img_path, targets[img_idx].detach().cpu(), yolo.reso, type='gt')
+        gt_img_tensor = utils.make_grid(transforms.ToTensor()(gt_img))
+        pred_img_tensor = utils.make_grid(transforms.ToTensor()(pred_img))
+        writer.add_image('image/pred', pred_img_tensor, global_step)
+        writer.add_image('image/gt', gt_img_tensor, global_step)
 
 
 if __name__ == '__main__':
   # 1. Parsing arguments
-  print(emojify("\n==> Parsing arguments :hammer:\n"))
+  print(colored("\n==>", 'blue'), emojify("Parsing arguments :hammer:\n"))
   assert args.reso % 32 == 0, emojify("Resolution must be interger times of 32 :shit:")
   for arg in vars(args):
     print(arg, ':', getattr(args, arg))
   print("log_dir :", log_dir)
 
   # 2. Preparing data
-  print(emojify("\n==> Preparing data :coffee:\n"))
+  print(colored("\n==>", 'blue'), emojify("Preparing data :coffee:\n"))
   img_datasets, dataloader = prepare_train_dataset(args.dataset, args.reso, args.batch)
   print("# Training images:", len(img_datasets))
 
   # 3. Loading network
-  print(emojify("\n==> Loading network :hourglass:\n"))
+  print(colored("\n==>", 'blue'), emojify("Loading network :hourglass:\n"))
   yolo = YOLOv3(cfg, args.reso).cuda()
   start_epoch = args.epoch
   best_mAP = 0
@@ -117,14 +123,7 @@ if __name__ == '__main__':
   print("Model starts training from epoch %d" % start_epoch)
 
   # 4. Training
-  print(emojify("\n==> Training :seedling:\n"))
+  print(colored("\n==>", 'blue'), emojify("Training :seedling:\n"))
   yolo.train()
   for epoch in range(start_epoch, start_epoch+20):
-    train(epoch, dataloader, yolo, args.lr, args.save)
-    if epoch % 5 == 4:  # save every 4 epochs
-      save_dict = {
-        'mAP': 0,
-        'epoch': epoch,
-        'state_dict': yolo.state_dict()
-      }
-      save_checkpoint(opj(config.CKPT_ROOT, args.dataset), epoch, save_dict)
+    train(epoch, dataloader, yolo, args.lr, args.period)

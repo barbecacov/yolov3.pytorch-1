@@ -26,7 +26,6 @@ def parse_arg():
   parser.add_argument('--batch', default=16, type=int, help="Batch size")
   parser.add_argument('--dataset', default='coco', choices=['tejani', 'coco'], type=str, help="Dataset name")
   parser.add_argument('--epoch', default=0, type=int, help="Start epoch of training")
-  parser.add_argument('--period', default=-1, type=int, help="Trainig result saving period, -1 for not saving")
   return parser.parse_args()
 
 
@@ -36,7 +35,7 @@ log_dir = opj(config.LOG_ROOT, get_current_time())
 writer = SummaryWriter(log_dir=log_dir)
 
 
-def train(epoch, trainloader, yolo, lr, save_period):
+def train(epoch, trainloader, yolo, lr):
   """Training wrapper
 
   @Args
@@ -44,7 +43,6 @@ def train(epoch, trainloader, yolo, lr, save_period):
     trainloader: (Dataloader) train data loader 
     yolo: (nn.Module) YOLOv3 model
     lr: (float) learning rate
-    save_period: (int) trainig result saving period
   """
   train_mAP = None
   optimizer = optim.SGD(yolo.parameters(), lr=lr, momentum=0.9, weight_decay=5e-4)
@@ -75,28 +73,34 @@ def train(epoch, trainloader, yolo, lr, save_period):
     loss['total'].backward()
     optimizer.step()
 
-    with torch.no_grad():
-      if save_period > 0 and batch_idx % save_period == 0:
-        img_idx = 0  # idx in a batch
+    # save something every 500 steps
+    if (global_step + 1) % 500 == 0:
+      save_checkpoint(opj(config.CKPT_ROOT, args.dataset), global_step, {
+        'epoch': global_step,  # FIXME: 'iteration' instead of 'epoch'
+        'mAP': train_mAP,
+        'state_dict': yolo.state_dict()
+      })
 
-        if args.dataset == 'coco':
-          img_path = opj(config.datasets[args.dataset]['train_root'], names[img_idx])
+      img_idx = 0  # idx in a batch
 
-        try:
-          detection = detections[detections[:, 0] == img_idx]
-          if detection.size(0) == 0:
-            raise Exception
-        except Exception:
-          print(emojify("\nDetection disappeared :scream:"))
-          pred_img = Image.open(img_path)
-        else:
-          pred_img = draw_detection(img_path, detection.detach().cpu(), yolo.reso, type='pred')
+      if args.dataset == 'coco':
+        img_path = opj(config.datasets[args.dataset]['train_imgs'], names[img_idx])
 
-        gt_img = draw_detection(img_path, targets[img_idx].detach().cpu(), yolo.reso, type='gt')
-        gt_img_tensor = utils.make_grid(transforms.ToTensor()(gt_img))
-        pred_img_tensor = utils.make_grid(transforms.ToTensor()(pred_img))
-        writer.add_image('image/pred', pred_img_tensor, global_step)
-        writer.add_image('image/gt', gt_img_tensor, global_step)
+      try:
+        detection = detections[detections[:, 0] == img_idx]
+        if detection.size(0) == 0:
+          raise Exception
+      except Exception:
+        print(emojify("\nDetection disappeared :scream:"))
+        pred_img = Image.open(img_path)
+      else:
+        pred_img = draw_detection(img_path, detection.detach().cpu(), yolo.reso, type='pred')
+
+      gt_img = draw_detection(img_path, targets[img_idx].detach().cpu(), yolo.reso, type='gt')
+      gt_img_tensor = utils.make_grid(transforms.ToTensor()(gt_img))
+      pred_img_tensor = utils.make_grid(transforms.ToTensor()(pred_img))
+      writer.add_image('image/pred', pred_img_tensor, global_step)
+      writer.add_image('image/gt', gt_img_tensor, global_step)
 
 
 if __name__ == '__main__':
@@ -117,13 +121,12 @@ if __name__ == '__main__':
   yolo = YOLOv3(cfg, args.reso).cuda()
   start_epoch = args.epoch
   best_mAP = 0
-  if start_epoch != 0:
-    start_epoch, best_mAP, state_dict = load_checkpoint(opj(config.CKPT_ROOT, args.dataset), start_epoch)
-    yolo.load_state_dict(state_dict)
+  start_epoch, best_mAP, state_dict = load_checkpoint(opj(config.CKPT_ROOT, args.dataset), start_epoch)
+  yolo.load_state_dict(state_dict)
   print("Model starts training from epoch %d" % start_epoch)
 
   # 4. Training
   print(colored("\n==>", 'blue'), emojify("Training :seedling:\n"))
   yolo.train()
   for epoch in range(start_epoch, start_epoch+20):
-    train(epoch, dataloader, yolo, args.lr, args.period)
+    train(epoch, dataloader, yolo, args.lr)

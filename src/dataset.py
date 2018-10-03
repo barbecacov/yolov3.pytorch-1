@@ -227,9 +227,12 @@ def prepare_train_dataset(name, reso, batch_size=32):
 
   if name == 'coco':
     path = config.datasets[name]
-    img_datasets = CocoDataset(root=path['train_root'], annFile=path['train_anno'], transform=transform)
+    img_datasets = CocoDataset(root=path['train_imgs'], annFile=path['train_anno'], transform=transform)
+  elif name == 'tejani':
+    path = config.datasets[name]
+    img_datasets = SixdDataset(root=path['train_root'], listname='train.txt', transform=transform)
 
-  dataloder = torch.utils.data.DataLoader(img_datasets, batch_size=batch_size, num_workers=4, shuffle=True)
+  dataloder = torch.utils.data.DataLoader(img_datasets, batch_size=batch_size, num_workers=8, shuffle=True)
 
   return img_datasets, dataloder
 

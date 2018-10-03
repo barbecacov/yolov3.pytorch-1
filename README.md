@@ -1,9 +1,8 @@
 # yolov3.pytorch
 
-* 2018/10/03 **UPDATE** It seems loss is decreasing but still need time to see if they'll converge. Details could be seen in issue [#1](https://github.com/ECer23/yolov3.pytorch/issues/1)
+* 2018/10/03 **UPDATE** Loss will converge after 5 epochs but the model couldn't generate any bounding boxes. Details could be seen in issue [#1](https://github.com/ECer23/yolov3.pytorch/issues/1)
 * 2018/10/02 Could load pre trained darknet-53 to train from scartch
-* 2018/10/01 ~~Not sure if loss function is working~~
-* 2018/09/30 mAP is implemented
+* 2018/09/30 mAP evaluation implemented
 
 This repository contains code for a object detector based on [YOLOv3: An Incremental Improvement](https://pjreddie.com/media/files/papers/YOLOv3.pdf), implemented in PyTorch. This repository is based on [ayooshkathuria/pytorch-yolo-v3](https://github.com/ayooshkathuria/pytorch-yolo-v3). I re-implemented it in PyTorch for better readability and re-useablity.
 
@@ -13,7 +12,7 @@ This repository contains code for a object detector based on [YOLOv3: An Increme
 * PyTorch **0.4** (v0.4.1 or v0.3 is not supported)
 * Pillow
 * Numpy
-* CUDA (**CPU is not supported for both training and test!**)
+* CUDA (**CPU is not supported**)
 
 ## Train
 
@@ -101,7 +100,7 @@ I've implemented `prepare_train_dataset` in `dataset.py` to prepare COCO dataloa
 
 ### Evaluation demo
 
-![](https://github.com/ECer23/yolov3.pytorch/raw/master/assets/results/000000085376.jpg)
+![](https://github.com/ECer23/yolov3.pytorch/raw/master/assets/dets/person.jpg)
 
 ## TODO
 

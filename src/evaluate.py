@@ -20,7 +20,7 @@ def parse_arg():
   parser.add_argument('--reso', default=416, type=int, help="Input image resolution")
   parser.add_argument('--batch', default=32, type=int, help="Batch size")
   parser.add_argument('--dataset', default='coco', choices=['tejani', 'coco'], type=str, help="Dataset name")
-  parser.add_argument('--epoch', default=-1, type=int, help="Start epoch of validation")
+  parser.add_argument('--checkpoint', default='-1.-1', type=str, help="Checkpoint name in format: `epoch.iteration`")
   parser.add_argument('--save', action='store_true', help="Save image during validation")
   return parser.parse_args()
 
@@ -40,14 +40,14 @@ def val(valloader, yolo, save_img=True):
   mAPs = []
   tbar = tqdm(valloader, ncols=80)
   for batch_idx, (names, inputs, targets) in enumerate(tbar):
-    inputs, targets = inputs.cuda(), targets.cuda()
+    inputs = inputs.cuda()
     detections = yolo(inputs)
     mAP_batch = mAP(detections, targets, args.reso)
     mAPs += mAP_batch
     tbar.set_description("mAP=%.2f%%" % (np.mean(mAPs) * 100))
 
     if save_img == True:
-      img_path = opj(config.datasets[args.dataset]['val_root'], names[0])
+      img_path = opj(config.datasets[args.dataset]['val_imgs'], names[0])
       img_name = img_path.split('/')[-1]
 
       try:
@@ -79,10 +79,14 @@ if __name__ == '__main__':
   # 3. Loading network
   print(emojify("\n==> Loading network ... :hourglass:\n"))
   yolo = YOLOv3(cfg, args.reso).cuda()
-  if args.epoch != 0:
-    start_epoch, _, state_dict = load_checkpoint(opj(config.CKPT_ROOT, args.dataset), args.epoch)
-    yolo.load_state_dict(state_dict)
-  print("Checkpoint epoch:", start_epoch)
+  start_epoch, start_iteration = args.checkpoint.split('.')
+  start_epoch, start_iteration, best_mAP, state_dict = load_checkpoint(
+    opj(config.CKPT_ROOT, args.dataset),
+    int(start_epoch),
+    int(start_iteration)
+  )
+  yolo.load_state_dict(state_dict)
+  print("Model starts training from epoch %d iteration %d" % (start_epoch, start_iteration))
 
   print(emojify("\n==> Evaluating ...\n"))
   yolo.eval()

@@ -186,7 +186,7 @@ class YOLOv3(nn.Module):
     for i, y_pred in self.cache.items():
       block = self.blocks[i]
       assert block['type'] == 'yolo'
-      loss, cache = self.module_list[i][0].loss(y_pred, y_true.clone())
+      loss, cache = self.module_list[i][0].loss(y_pred, y_true)
       for name in loss.keys():
         losses[name] += loss[name]
         losses['total'] += loss[name]
@@ -281,7 +281,7 @@ if __name__ == '__main__':
   model = YOLOv3(config.network['coco']['cfg'], 416).cuda()
 
   # transfer pretrained yolo
-  model.load_weights('../checkpoints/darknet/yolov3-coco.weights', cut=74)
+  model.load_weights('../checkpoints/darknet/yolov3-coco.weights')
   save_checkpoint(opj(config.CKPT_ROOT, 'coco'), -1, -1, {
     'epoch': -1,
     'iteration': -1,

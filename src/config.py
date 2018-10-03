@@ -6,6 +6,7 @@ ROOT = '/media/data_1/home/penggao/penggao/detection/yolo3.pytorch'
 LOG_ROOT = opj(ROOT, 'log')
 CKPT_ROOT = opj(ROOT, 'checkpoints')
 
+
 def parse_names(path):
   """Parse names .json"""
   with open(path) as json_data:
@@ -20,6 +21,7 @@ def create_category_mapping(d):
   return mapping
 
 
+# datasets config
 datasets = {
     'tejani': {
         'train_root': '/media/data_2/COCO_SIXD/tejani',
@@ -36,6 +38,7 @@ datasets = {
     }
 }
 
+# network config
 network = {
     'tejani': {
         'cfg': opj(ROOT, 'lib/yolov3-tejani.cfg')
@@ -45,11 +48,16 @@ network = {
     }
 }
 
+# evaluation config
 evaluate = {
     'result_dir': opj(ROOT, 'assets/results')
 }
 
+# demo.py config
 demo = {
     'images_dir': opj(ROOT, 'assets/imgs'),
     'result_dir': opj(ROOT, 'assets/dets')
 }
+
+# draw detection's colors
+colors = {}

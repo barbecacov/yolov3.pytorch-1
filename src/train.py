@@ -51,12 +51,12 @@ def train(epoch, trainloader, yolo, lr):
     optimizer.zero_grad()
 
     global_step = batch_idx + epoch*len(trainloader)
-    inputs, targets = inputs.cuda(), targets.cuda()
+    inputs = inputs.cuda()
     detections = yolo(inputs)
 
     loss, cache = yolo.loss(targets)
     with torch.no_grad():
-      mAPs = mAP(detections.detach(), targets.detach(), yolo.reso)
+      mAPs = mAP(detections, targets, yolo.reso)
     mAP_batch = np.mean(mAPs)
     train_mAP = (mAP_batch + train_mAP * batch_idx) / (1 + batch_idx) if train_mAP is not None else mAP_batch
     tbar.set_description('%.3f%%' % (train_mAP * 100))
@@ -75,7 +75,7 @@ def train(epoch, trainloader, yolo, lr):
 
     # save something every 1000 iterations
     if (batch_idx + 1) % 1000 == 0:
-      save_checkpoint(opj(config.CKPT_ROOT, args.dataset), global_step, {
+      save_checkpoint(opj(config.CKPT_ROOT, args.dataset), epoch, batch_idx + 1, {
         'epoch': epoch,
         'iteration': batch_idx + 1,
         'state_dict': yolo.state_dict(),

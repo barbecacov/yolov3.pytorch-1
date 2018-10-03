@@ -125,14 +125,10 @@ class DetectionLayer(nn.Module):
     # 1.1 re-organize y_pred
     # [bs, (5+nC)*nA, gs, gs] => [bs, num_anchors, gs, gs, 5+nC]
     bs, _, gs, _ = y_pred.size()
-    nB = y_true.size(1)
     nA = len(self.anchors)
     nC = self.num_classes
     y_pred = y_pred.view(bs, nA, 5+nC, gs, gs)
     y_pred = y_pred.permute(0, 1, 3, 4, 2)
-
-    # 1.2 scale bbox relative to feature map
-    y_true[..., :4] *= gs
 
     # 1.3 prepare anchor boxes
     stride = self.reso // gs
@@ -150,13 +146,9 @@ class DetectionLayer(nn.Module):
     obj_mask = torch.ByteTensor(bs, nA, gs, gs).fill_(0).cuda()
     cls_mask = torch.ByteTensor(bs, nA, gs, gs, nC).fill_(0).cuda()
     for batch_idx in range(bs):
-      for box_idx in range(nB):
-        if y_true[batch_idx, box_idx, ...].sum() == 0:  # redundancy label
-          continue
-
+      for box_idx, y_true_one in enumerate(y_true[batch_idx]):
         total_num += 1
-        y_true_one = y_true[batch_idx, box_idx, ...]
-        gt_bbox = y_true_one[:4]
+        gt_bbox = y_true_one[:4] * gs  # scale bbox relative to feature map
         gt_cls_label = int(y_true_one[4])
 
         gt_xc, gt_yc, gt_w, gt_h = gt_bbox[0:4]
@@ -223,10 +215,10 @@ class NMSLayer(nn.Module):
 
   @Args    
     conf_thresh: (float) fore-ground confidence threshold, default 0.5
-    nms_thresh: (float) nms threshold, default 0.4
+    nms_thresh: (float) nms threshold, default 0.5
   """
 
-  def __init__(self, conf_thresh=0.5, nms_thresh=0.4):
+  def __init__(self, conf_thresh=0.5, nms_thresh=0.5):
     super(NMSLayer, self).__init__()
     self.conf_thresh = conf_thresh
     self.nms_thresh = nms_thresh

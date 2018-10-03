@@ -27,23 +27,13 @@ class DemoDataset(torch.utils.data.dataset.Dataset):
     self.imgs_list = os.listdir(imgs_dir)
     self.transform = transform
 
-  def get_path(self, index):
-    """Get image path
-
-    @Args
-      index: (int)
-    """
-    img_name = self.imgs_list[index]
-    img_path = os.path.join(self.imgs_dir, img_name)
-    return img_path
-
   def __getitem__(self, index):
     """Inherited method"""
     img_name = self.imgs_list[index]
     img_path = os.path.join(self.imgs_dir, img_name)
     img = Image.open(img_path)
     img_tensor = self.transform(img)
-    return img_tensor, 0  # TODO: fix label
+    return img_path, img_tensor
 
   def __len__(self):
     return len(self.imgs_list)
@@ -56,9 +46,7 @@ class CocoDataset(CocoDetection):
       path: (str) image file name
       img: (Tensor) with size [C, H, W]
       TODO: memory improvements ?
-      target_tensor: (Tensor) with size [100,5]
-        100 => fixed size # bboxes
-        5 => [xc, yc, w, h, label]
+      target_tensor: (list of Tensor) each list item with size [xc, yc, w, h, label]
     """
     coco = self.coco
     img_id = self.ids[index]
@@ -67,21 +55,31 @@ class CocoDataset(CocoDetection):
     img = Image.open(os.path.join(self.root, path)).convert('RGB')
     w, h = img.size
     target = coco.loadAnns(ann_ids)
-    assert len(target) < 100, "# bboxes exceed 100"
-    target_tensor = torch.zeros(100, 5)
+    annos = torch.zeros(len(target), 5)
     for i in range(len(target)):
-      target_tensor[i, :4] = torch.Tensor(target[i]['bbox'])
-      target_tensor[i, 4] = config.datasets['coco']['category_id_mapping'][int(target[i]['category_id'])]
-      # TODO: comment!
-      target_tensor[i, 0] += target_tensor[i, 2] / 2
-      target_tensor[i, 1] += target_tensor[i, 3] / 2
-      target_tensor[i, 0] /= w
-      target_tensor[i, 2] /= w
-      target_tensor[i, 1] /= h
-      target_tensor[i, 3] /= h
+      bbox = torch.Tensor(target[i]['bbox'])  # [x1, y1, w, h]
+      label = config.datasets['coco']['category_id_mapping'][int(target[i]['category_id'])]
+      annos[i, 0] = (bbox[0] + bbox[2] / 2) / w  # xc
+      annos[i, 1] = (bbox[1] + bbox[3] / 2) / h  # yc
+      annos[i, 2] = bbox[2] / w  # w
+      annos[i, 3] = bbox[3] / h  # h
+      annos[i, 4] = label  # 0-80
     if self.transform is not None:
       img = self.transform(img)
-    return path, img, target_tensor
+    return path, img, annos
+
+  @staticmethod
+  def collate_fn(batch):
+    """Collate function for Coco DataLoader
+
+    @Returns
+      names: (tuple) each is a str of image filename
+      images: (Tensor) with size [bs, C, H, W]
+      annos: (tuple) each is a Tensor of annotations
+    """
+    names, images, annos = zip(*batch)
+    images = default_collate(images)
+    return names, images, annos
 
 
 class SixdDataset(torch.utils.data.dataset.Dataset):
@@ -203,7 +201,7 @@ def prepare_demo_dataset(path, reso, batch_size=1):
   ])
 
   img_datasets = DemoDataset(path, transform)
-  dataloader = torch.utils.data.DataLoader(img_datasets, batch_size=batch_size, num_workers=4)
+  dataloader = torch.utils.data.DataLoader(img_datasets, batch_size=batch_size, num_workers=8)
 
   return img_datasets, dataloader
 
@@ -228,11 +226,10 @@ def prepare_train_dataset(name, reso, batch_size=32):
   if name == 'coco':
     path = config.datasets[name]
     img_datasets = CocoDataset(root=path['train_imgs'], annFile=path['train_anno'], transform=transform)
+    dataloder = torch.utils.data.DataLoader(img_datasets, batch_size=batch_size, num_workers=8, shuffle=True, collate_fn=CocoDataset.collate_fn)
   elif name == 'tejani':
     path = config.datasets[name]
     img_datasets = SixdDataset(root=path['train_root'], listname='train.txt', transform=transform)
-
-  dataloder = torch.utils.data.DataLoader(img_datasets, batch_size=batch_size, num_workers=8, shuffle=True)
 
   return img_datasets, dataloder
 
@@ -256,8 +253,8 @@ def prepare_val_dataset(name, reso, batch_size=32):
 
   if name == 'coco':
     path = config.datasets[name]
-    img_datasets = CocoDataset(root=path['val_root'], annFile=path['val_anno'], transform=transform)
+    img_datasets = CocoDataset(root=path['val_imgs'], annFile=path['val_anno'], transform=transform)
 
-  dataloder = torch.utils.data.DataLoader(img_datasets, batch_size=batch_size, num_workers=4)
+  dataloder = torch.utils.data.DataLoader(img_datasets, batch_size=batch_size, num_workers=8, collate_fn=CocoDataset.collate_fn)
 
   return img_datasets, dataloder

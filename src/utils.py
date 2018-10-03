@@ -1,9 +1,10 @@
 import os
 import torch
+import random
 import datetime
 import numpy as np
 from pyemojify import emojify
-from PIL import Image, ImageFont, ImageDraw, ImageEnhance
+from PIL import Image, ImageFont, ImageDraw
 opj = os.path.join
 
 import config
@@ -117,7 +118,7 @@ def draw_detection(img_path, detection, reso, type):
     img_path: (str) path to image
     detection: (np.array) detection result
       1. (type == 'pred') with size [#bbox, [batch_idx, top-left x, top-left y, bottom-right x, bottom-right y, objectness, conf, class idx]]
-      2. (type == 'gt') with size [#box, [top-left x, top-left y, bottom-right x, bottom-right y]] 
+      2. (type == 'gt') with size [#box, [top-left x, top-left y, bottom-right x, bottom-right y]]
     reso: (int) image resolution
     type: (str) prediction or ground truth
 
@@ -132,28 +133,30 @@ def draw_detection(img_path, detection, reso, type):
   w_ratio = w / reso
   h_ratio, w_ratio
   draw = ImageDraw.Draw(img)
+  font = ImageFont.truetype("../assets/Roboto-Bold.ttf", 15)
 
-  if type == 'pred':
-    for i in range(detection.shape[0]):
+  for i in range(detection.shape[0]):
+    if type == 'pred':
       bbox = detection[i, 1:5]
-      label = class_names[int(detection[i, -1])]
+      category = int(detection[i, -1])
+      label = class_names[category]
       conf = '%.2f' % detection[i, -2]
       caption = str(label) + ' ' + str(conf)
-      x1, y1, x2, y2 = bbox[0], bbox[1], bbox[2], bbox[3]
-      draw.rectangle(((x1 * w_ratio, y1 * h_ratio, x2 * w_ratio, y2 * h_ratio)), outline='red')
-      draw.text((x1 * w_ratio, y1 * h_ratio), caption, fill='red')
-  elif type == 'gt':
-    for i in range(detection.shape[0]):
-      if detection[i, 0:4].sum() == 0:
-        break
+    elif type == 'gt':
       bbox = transform_coord(detection[i, 0:4], src='center', dst='corner')
-      label = class_names[int(detection[i, -1])]
+      label = class_names[category]
       caption = str(label)
-      x1, y1, x2, y2 = bbox[0], bbox[1], bbox[2], bbox[3]
-      draw.rectangle(((x1 * w, y1 * h, x2 * w, y2 * h)), outline='red')
-      draw.text((x1 * w, y1 * h), caption, fill='red')
-  else:
-    raise Exception(emojify("detection type not supported! :shit:"))
+      w_ratio = w
+      h_ratio = h
+    else:
+      raise Exception(emojify("detection type not supported! :shit:"))
+
+    if category not in config.colors.keys():
+      config.colors[category] = (random.randint(0, 255), random.randint(0, 255), random.randint(0, 255))
+    x1, y1, x2, y2 = bbox[0], bbox[1], bbox[2], bbox[3]
+    draw.rectangle(((x1 * w_ratio, y1 * h_ratio, x2 * w_ratio, y2 * h_ratio)), outline=config.colors[category])
+    draw.rectangle((bbox[0] * w_ratio, bbox[1] * h_ratio - 15, bbox[2] * w_ratio, bbox[1] * h_ratio), fill=config.colors[category])
+    draw.text((bbox[0] * w_ratio + 2, bbox[1] * h_ratio - 15), caption, fill='white', font=font)
 
   return img
 
@@ -184,14 +187,14 @@ def load_checkpoint(checkpoint_dir, epoch, iteration):
   """Load checkpoint from path
 
   @Args
-    checkpoint_dir: (str) absolute path to checkpoint folder  
+    checkpoint_dir: (str) absolute path to checkpoint folder
     epoch: (int) epoch of checkpoint
     iteration: (int) iteration of checkpoint in one epoch
 
   @Returns
     start_epoch: (int)
     mAP: (float)
-    state_dict: (dict) state of model  
+    state_dict: (dict) state of model
   """
   path = opj(checkpoint_dir, str(epoch) + '.' + str(iteration) + '.ckpt')
   if not os.path.isfile(path):
@@ -212,7 +215,7 @@ def save_checkpoint(checkpoint_dir, epoch, iteration, save_dict):
   """Save checkpoint to path
 
   @Args
-    path: (str) absolute path to checkpoint folder  
+    path: (str) absolute path to checkpoint folder
     epoch: (int) epoch of checkpoint file
     iteration: (int) iteration of checkpoint in one epoch
     save_dict: (dict) saving parameters dict
@@ -227,6 +230,8 @@ def save_checkpoint(checkpoint_dir, epoch, iteration, save_dict):
     torch.save(save_dict, path)
   except Exception:
     raise Exception(emojify("Fail to save checkpoint :sob:"))
+  
+  print(emojify("Checkpoint %s saved :heavy_check_mark:" % (str(epoch) + '.' + str(iteration) + '.ckpt')))
 
 
 def mAP(preds, gts, reso):
@@ -246,21 +251,15 @@ def mAP(preds, gts, reso):
   """
   mAPs = []
 
-  for batch_idx in range(gts.size(0)):
-    if gts[batch_idx, ...].sum() == 0:
-      mAPs.append(0)
+  for batch_idx, gt_batch in enumerate(gts):
+    if gt_batch.size(0) == 0:
       continue
-
+      
     correct = []
     detected = []
 
     # TODO: modify gt label format
-    # filter dummy gts
-    gt_batch = gts[batch_idx, ...]
-    non_zero_mask = torch.nonzero(gt_batch)
-    non_zero_idx = non_zero_mask[-1, 0]
-    gt_batch = gt_batch[0:non_zero_idx+1]
-
+    gt_batch = gt_batch.cuda()
     gt_bboxes = transform_coord(gt_batch[:, :4]) * reso
     gt_labels = gt_batch[:, 4]
 

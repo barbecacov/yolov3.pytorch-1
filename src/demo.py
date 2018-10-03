@@ -16,9 +16,9 @@ from utils import draw_detection, load_checkpoint
 
 def parse_arg():
   parser = argparse.ArgumentParser(description='YOLO v3 training')
-  parser.add_argument('--reso', default=416, type=int, help="Input image resolution of the network")
-  parser.add_argument('--epoch', default=-1, type=int, help="Epoch of checkpoint. -1 for official pre trained checkpoint")
+  parser.add_argument('--reso', default=480, type=int, help="Input image resolution of the network")
   parser.add_argument('--dataset', default='coco', choices=['coco'], type=str, help="Trained dataset name")
+  parser.add_argument('--checkpoint', default='-1.-1', type=str, help="Checkpoint name in format: `epoch.iteration`")
   return parser.parse_args()
 
 
@@ -38,18 +38,26 @@ if __name__ == '__main__':
 
   print(colored("\n==>", 'blue'), emojify("Loading network ... :hourglass:\n"))
   yolo = YOLOv3(cfg, args.reso).cuda()
-  start_epoch, _, state_dict = load_checkpoint(opj(config.CKPT_ROOT, args.dataset), args.epoch)
+  start_epoch, start_iteration = args.checkpoint.split('.')
+  start_epoch, start_iteration, best_mAP, state_dict = load_checkpoint(
+    opj(config.CKPT_ROOT, args.dataset),
+    int(start_epoch),
+    int(start_iteration)
+  )
   yolo.load_state_dict(state_dict)
-  print("Checkpoint epoch:", start_epoch)
+  print("Model starts training from epoch %d iteration %d, with mAP %.2f%%" % (start_epoch, start_iteration, best_mAP * 100))
 
   print(colored("\n==>", 'blue'), emojify("Evaluation ...\n"))
   yolo.eval()
-  for batch_idx, (inputs, _) in enumerate(tqdm(dataloader, ncols=80)):
+  for batch_idx, (img_path, inputs) in enumerate(tqdm(dataloader, ncols=80)):
     inputs = inputs.cuda()
     detections = yolo(inputs)
 
-    img_path = img_datasets.get_path(batch_idx)
-    img_name = img_path.split('/')[-1]
-    img = draw_detection(img_path, detections.data, args.reso, type='pred')
+    # take idx 0
+    detections = detections[detections[:, 0] == 0]
+    path = img_path[0]
+
+    img_name = path.split('/')[-1]
+    img = draw_detection(path, detections.data, args.reso, type='pred')
     img.save(opj(config.demo['result_dir'], img_name))
   print(emojify("Done! :+1:\n"))

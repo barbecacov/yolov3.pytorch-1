@@ -25,7 +25,7 @@ def parse_arg():
   parser.add_argument('--lr', default=1e-3, type=float, help="Learning rate")
   parser.add_argument('--batch', default=16, type=int, help="Batch size")
   parser.add_argument('--dataset', default='coco', choices=['tejani', 'coco'], type=str, help="Dataset name")
-  parser.add_argument('--epoch', default=0, type=int, help="Start epoch of training")
+  parser.add_argument('--checkpoint', default='0.0', type=str, help="Checkpoint name in format: `epoch.iteration`")
   return parser.parse_args()
 
 
@@ -73,12 +73,13 @@ def train(epoch, trainloader, yolo, lr):
     loss['total'].backward()
     optimizer.step()
 
-    # save something every 500 steps
-    if (global_step + 1) % 500 == 0:
+    # save something every 1000 iterations
+    if (batch_idx + 1) % 1000 == 0:
       save_checkpoint(opj(config.CKPT_ROOT, args.dataset), global_step, {
-        'epoch': global_step,  # FIXME: 'iteration' instead of 'epoch'
+        'epoch': epoch,
+        'iteration': batch_idx + 1,
+        'state_dict': yolo.state_dict(),
         'mAP': train_mAP,
-        'state_dict': yolo.state_dict()
       })
 
       img_idx = 0  # idx in a batch
@@ -111,22 +112,26 @@ if __name__ == '__main__':
     print(arg, ':', getattr(args, arg))
   print("log_dir :", log_dir)
 
-  # 2. Preparing data
+  # 2. Loading network
+  print(colored("\n==>", 'blue'), emojify("Loading network :hourglass:\n"))
+  yolo = YOLOv3(cfg, args.reso).cuda()
+  start_epoch, start_iteration = args.checkpoint.split('.')
+  start_epoch, start_iteration, best_mAP, state_dict = load_checkpoint(
+    opj(config.CKPT_ROOT, args.dataset),
+    int(start_epoch),
+    int(start_iteration)
+  )
+  yolo.load_state_dict(state_dict)
+  print("Model starts training from epoch %d iteration %d, with mAP %.2f%%" % (start_epoch, start_iteration, best_mAP * 100))
+
+  # 3. Preparing data
   print(colored("\n==>", 'blue'), emojify("Preparing data :coffee:\n"))
   img_datasets, dataloader = prepare_train_dataset(args.dataset, args.reso, args.batch)
   print("# Training images:", len(img_datasets))
-
-  # 3. Loading network
-  print(colored("\n==>", 'blue'), emojify("Loading network :hourglass:\n"))
-  yolo = YOLOv3(cfg, args.reso).cuda()
-  start_epoch = args.epoch
-  best_mAP = 0
-  start_epoch, best_mAP, state_dict = load_checkpoint(opj(config.CKPT_ROOT, args.dataset), start_epoch)
-  yolo.load_state_dict(state_dict)
-  print("Model starts training from epoch %d" % start_epoch)
 
   # 4. Training
   print(colored("\n==>", 'blue'), emojify("Training :seedling:\n"))
   yolo.train()
   for epoch in range(start_epoch, start_epoch+20):
+    print("[EPOCH] %d" % epoch)
     train(epoch, dataloader, yolo, args.lr)

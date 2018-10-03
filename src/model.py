@@ -271,8 +271,9 @@ if __name__ == '__main__':
 
   # transfer pretrained darknets
   model.load_weights('../checkpoints/darknet/darknet53.conv.74.weights', cut=74)
-  save_checkpoint(opj(config.CKPT_ROOT), 0, {
+  save_checkpoint(opj(config.CKPT_ROOT), 0, 0, {
     'epoch': 0,
+    'iteration': 0,
     'state_dict': model.state_dict(),
     'mAP': 0  # FIXME: ?
   })
@@ -281,8 +282,9 @@ if __name__ == '__main__':
 
   # transfer pretrained yolo
   model.load_weights('../checkpoints/darknet/yolov3-coco.weights', cut=74)
-  save_checkpoint(opj(config.CKPT_ROOT, 'coco'), -1, {
+  save_checkpoint(opj(config.CKPT_ROOT, 'coco'), -1, -1, {
     'epoch': -1,
+    'iteration': -1,
     'state_dict': model.state_dict(),
     'mAP': 0  # FIXME: ?
   })

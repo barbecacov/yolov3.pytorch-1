@@ -61,16 +61,16 @@ def transform_coord(bbox, src='center', dst='corner'):
   if len(bbox.size()) == 1:
     bbox = bbox.unsqueeze(0)
     flag = True
-  
+
   bbox_transformed = bbox.new(bbox.size())
-  if src == 'center' and dst == 'corner':    
+  if src == 'center' and dst == 'corner':
     bbox_transformed[..., 0] = (bbox[..., 0] - bbox[..., 2]/2)
     bbox_transformed[..., 1] = (bbox[..., 1] - bbox[..., 3]/2)
     bbox_transformed[..., 2] = (bbox[..., 0] + bbox[..., 2]/2)
     bbox_transformed[..., 3] = (bbox[..., 1] + bbox[..., 3]/2)
   elif src == 'corner' and dst == 'center':
-    bbox_transformed[..., 0] = (bbox[..., 0] + bbox[..., 2]) /2
-    bbox_transformed[..., 1] = (bbox[..., 1] + bbox[..., 3]) /2
+    bbox_transformed[..., 0] = (bbox[..., 0] + bbox[..., 2]) / 2
+    bbox_transformed[..., 1] = (bbox[..., 1] + bbox[..., 3]) / 2
     bbox_transformed[..., 2] = bbox[..., 2] - bbox[..., 0]
     bbox_transformed[..., 3] = bbox[..., 3] + bbox[..., 1]
   else:
@@ -180,19 +180,20 @@ def get_current_time():
   return str(time)
 
 
-def load_checkpoint(checkpoint_dir, epoch):
+def load_checkpoint(checkpoint_dir, epoch, iteration):
   """Load checkpoint from path
 
   @Args
     checkpoint_dir: (str) absolute path to checkpoint folder  
-    epoch: (int) epoch of checkpoint file  
+    epoch: (int) epoch of checkpoint
+    iteration: (int) iteration of checkpoint in one epoch
 
   @Returns
     start_epoch: (int)
     mAP: (float)
     state_dict: (dict) state of model  
   """
-  path = opj(checkpoint_dir, str(epoch) + '.ckpt')
+  path = opj(checkpoint_dir, str(epoch) + '.' + str(iteration) + '.ckpt')
   if not os.path.isfile(path):
     raise Exception(emojify("Checkpoint in epoch %d doesn't exist :sob:" % epoch))
 
@@ -200,23 +201,28 @@ def load_checkpoint(checkpoint_dir, epoch):
   start_epoch = checkpoint['epoch']
   best_mAP = checkpoint['mAP']
   state_dict = checkpoint['state_dict']
+  start_iteration = checkpoint['iteration']
 
   assert epoch == start_epoch, emojify("`epoch` != checkpoint's `start_epoch` :poop:")
-  return start_epoch, best_mAP, state_dict
+  assert iteration == start_iteration, emojify("`iteration` != checkpoint's `start_iteration` :poop:")
+  return start_epoch, start_iteration, best_mAP, state_dict
 
 
-def save_checkpoint(checkpoint_dir, epoch, save_dict):
+def save_checkpoint(checkpoint_dir, epoch, iteration, save_dict):
   """Save checkpoint to path
 
   @Args
     path: (str) absolute path to checkpoint folder  
-    epoch: (int) epoch of checkpoint file  
+    epoch: (int) epoch of checkpoint file
+    iteration: (int) iteration of checkpoint in one epoch
     save_dict: (dict) saving parameters dict
   """
   os.makedirs(checkpoint_dir, exist_ok=True)
-  path = opj(checkpoint_dir, str(epoch) + '.ckpt')
+  path = opj(checkpoint_dir, str(epoch) + '.' + str(iteration) + '.ckpt')
+  assert epoch == save_dict['epoch'], emojify("`epoch` != save_dict's `start_epoch` :poop:")
+  assert iteration == save_dict['iteration'], emojify("`iteration` != save_dict's `start_iteration` :poop:")
   if os.path.isfile(path):
-    print(emojify("Overwrite checkpoint in epoch %d :exclamation:" % epoch))
+    print(emojify("Overwrite checkpoint in epoch %d, iteration %d :exclamation:" % (epoch, iteration)))
   try:
     torch.save(save_dict, path)
   except Exception:

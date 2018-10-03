@@ -1,6 +1,6 @@
 # yolov3.pytorch
 
-* 2018/10/03 **UPDATE** Loss will converge after 5 epochs but the model couldn't generate any bounding boxes. Details could be seen in issue [#1](https://github.com/ECer23/yolov3.pytorch/issues/1)
+* 2018/10/03 **UPDATE** Loss will converge after 1 epoch but the model couldn't generate any bounding boxes. Details could be seen in issue [#1](https://github.com/ECer23/yolov3.pytorch/issues/1)
 * 2018/10/02 Could load pre trained darknet-53 to train from scartch
 * 2018/09/30 mAP evaluation implemented
 
@@ -63,7 +63,7 @@ I've implemented `prepare_train_dataset` in `dataset.py` to prepare COCO dataloa
 
 ### Training visualization
 
-![](https://raw.githubusercontent.com/ECer23/yolov3.pytorch/master/assets/demo.gif)
+![](https://raw.githubusercontent.com/ECer23/yolov3.pytorch/master/assets/demo.png)
 
 ## Evaluation
 
@@ -120,7 +120,7 @@ I've implemented `prepare_train_dataset` in `dataset.py` to prepare COCO dataloa
 
 - [ ] Data augumentation ?
 - [ ] CPU support
-- [ ] Memory use imporvements
+- [x] ~~Memory use imporvements~~
 
 ## Reference
 

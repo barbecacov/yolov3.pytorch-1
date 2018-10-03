@@ -52,7 +52,7 @@ if __name__ == '__main__':
   for batch_idx, (img_path, inputs) in enumerate(tqdm(dataloader, ncols=80)):
     inputs = inputs.cuda()
     detections = yolo(inputs)
-
+  
     # take idx 0
     detections = detections[detections[:, 0] == 0]
     path = img_path[0]

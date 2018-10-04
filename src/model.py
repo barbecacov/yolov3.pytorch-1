@@ -1,3 +1,4 @@
+import time
 import torch
 import numpy as np
 import torch.nn as nn
@@ -128,12 +129,11 @@ class YOLOv3(nn.Module):
 
     @Variables
       self.cache: (dict) cache of raw detection result, each with size [batch_size, num_bboxes, [xc, yc, w, h, p_ob]+num_classes]
-      TODO: cache ?  
 
     @Returns
       detections: (Tensor) detection result with size [num_bboxes, [batch idx, x1, y1, x2, y2, p0, conf, label]]
     """
-    detections = torch.Tensor()  # detection results
+    detections = torch.Tensor().cuda()  # detection results
     outputs = dict()   # output cache for route layer
 
     for i, block in enumerate(self.blocks):
@@ -169,7 +169,8 @@ class YOLOv3(nn.Module):
         detections = x if len(detections.size()) == 1 else torch.cat((detections, x), 1)
         outputs[i] = outputs[i-1]  # skip
 
-    detections = self.nms(detections)
+    if self.training == False:
+      detections = self.nms(detections)
 
     return detections
 
@@ -182,14 +183,23 @@ class YOLOv3(nn.Module):
     @Variables
       y_pred: (Tensor) raw detections with size [bs, ([tx,ty,tw,th,p_obj]+num_classes)*3, grid_size, grid_size]
     """
+    loss_lambda = {
+      'x': 2.5,
+      'y': 2.5,
+      'w': 2.5,
+      'h': 2.5,
+      'cls': 1.0,
+      'conf': 1.0,
+      'non_conf': 0.1
+    }
     losses = defaultdict(float)
     for i, y_pred in self.cache.items():
       block = self.blocks[i]
       assert block['type'] == 'yolo'
       loss, cache = self.module_list[i][0].loss(y_pred, y_true)
       for name in loss.keys():
-        losses[name] += loss[name]
-        losses['total'] += loss[name]
+        losses[name] += loss_lambda[name] * loss[name]
+        losses['total'] += loss_lambda[name] * loss[name]
     return losses, cache
 
   def load_weights(self, path, cut=None):

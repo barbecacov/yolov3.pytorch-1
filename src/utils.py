@@ -144,6 +144,7 @@ def draw_detection(img_path, detection, reso, type):
       caption = str(label) + ' ' + str(conf)
     elif type == 'gt':
       bbox = transform_coord(detection[i, 0:4], src='center', dst='corner')
+      category = int(detection[i, -1])
       label = class_names[category]
       caption = str(label)
       w_ratio = w
@@ -193,7 +194,7 @@ def load_checkpoint(checkpoint_dir, epoch, iteration):
 
   @Returns
     start_epoch: (int)
-    mAP: (float)
+    start_iteration: (int)
     state_dict: (dict) state of model
   """
   path = opj(checkpoint_dir, str(epoch) + '.' + str(iteration) + '.ckpt')
@@ -202,13 +203,12 @@ def load_checkpoint(checkpoint_dir, epoch, iteration):
 
   checkpoint = torch.load(path)
   start_epoch = checkpoint['epoch']
-  best_mAP = checkpoint['mAP']
   state_dict = checkpoint['state_dict']
   start_iteration = checkpoint['iteration']
 
   assert epoch == start_epoch, emojify("`epoch` != checkpoint's `start_epoch` :poop:")
   assert iteration == start_iteration, emojify("`iteration` != checkpoint's `start_iteration` :poop:")
-  return start_epoch, start_iteration, best_mAP, state_dict
+  return start_epoch, start_iteration, state_dict
 
 
 def save_checkpoint(checkpoint_dir, epoch, iteration, save_dict):
@@ -232,6 +232,23 @@ def save_checkpoint(checkpoint_dir, epoch, iteration, save_dict):
     raise Exception(emojify("Fail to save checkpoint :sob:"))
   
   print(emojify("Checkpoint %s saved :heavy_check_mark:" % (str(epoch) + '.' + str(iteration) + '.ckpt')))
+
+
+def log(writer, name, info, step):
+  """Wrapper for tensorboard writer
+
+  @Args
+    writer: (SummaryWriter)
+    name: (string) category name
+    info: (dict or float) value
+    step: (int) global steps
+  """
+  if isinstance(info, dict):
+    for key, value in info.items():
+      tag = name + '/' + key
+      writer.add_scalar(tag, value, step)
+  elif isinstance(info, float):
+    writer.add_scalar(name, info, step)
 
 
 def mAP(preds, gts, reso):
@@ -258,7 +275,6 @@ def mAP(preds, gts, reso):
     correct = []
     detected = []
 
-    # TODO: modify gt label format
     gt_batch = gt_batch.cuda()
     gt_bboxes = transform_coord(gt_batch[:, :4]) * reso
     gt_labels = gt_batch[:, 4]
@@ -283,7 +299,7 @@ def mAP(preds, gts, reso):
       iou = IoU(pred_bbox.unsqueeze(0), gt_bboxes)
       _, indices = torch.sort(iou, descending=True)
       best_idx = indices[0]
-      # TODO: iou thresh as variblae (0.5)
+      # FIXME: iou thresh as variblae (0.5)
       if iou[best_idx] > 0.5 and pred_label == gt_labels[best_idx] and best_idx not in detected:
         correct.append(1)
         detected.append(best_idx)

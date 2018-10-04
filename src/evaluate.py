@@ -44,7 +44,7 @@ def val(valloader, yolo, save_img=True):
     detections = yolo(inputs)
     mAP_batch = mAP(detections, targets, args.reso)
     mAPs += mAP_batch
-    tbar.set_description("mAP=%.2f%%" % (np.mean(mAPs) * 100))
+    tbar.set_description("mAP=%.2f" % (np.mean(mAPs) * 100))
 
     if save_img == True:
       img_path = opj(config.datasets[args.dataset]['val_imgs'], names[0])

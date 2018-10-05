@@ -184,13 +184,13 @@ class YOLOv3(nn.Module):
       y_pred: (Tensor) raw detections with size [bs, ([tx,ty,tw,th,p_obj]+num_classes)*3, grid_size, grid_size]
     """
     loss_lambda = {
-      'x': 2.5,
-      'y': 2.5,
+      'x': 5,
+      'y': 5,
       'w': 2.5,
       'h': 2.5,
       'cls': 1.0,
       'conf': 1.0,
-      'non_conf': 0.1
+      'non_conf': 0.5
     }
     losses = defaultdict(float)
     for i, y_pred in self.cache.items():

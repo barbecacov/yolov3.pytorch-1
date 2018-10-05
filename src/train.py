@@ -28,6 +28,7 @@ def parse_arg():
   parser.add_argument('--batch', default=16, type=int, help="Batch size")
   parser.add_argument('--dataset', default='coco', choices=['tejani', 'coco'], type=str, help="Dataset name")
   parser.add_argument('--checkpoint', default='0.0', type=str, help="Checkpoint name in format: `epoch.iteration`")
+  parser.add_argument('--gpu', default='0', type=str, help="GPU ids")
   return parser.parse_args()
 
 
@@ -35,8 +36,10 @@ args = parse_arg()
 cfg = config.network[args.dataset]['cfg']
 log_dir = opj(config.LOG_ROOT, get_current_time())
 writer = SummaryWriter(log_dir=log_dir)
+os.environ['CUDA_VISIBLE_DEVICES'] = args.gpu
 
-def train(epoch, trainloader, yolo, optimizer):
+
+def train(epoch, trainloader, yolo, optimizer, scheduler):
   """Training wrapper
 
   @Args
@@ -58,13 +61,14 @@ def train(epoch, trainloader, yolo, optimizer):
     log(writer, 'train_loss', loss, global_step)
     loss['total'].backward()
     optimizer.step()
+    scheduler.step()
 
-    # save something every 1000 iterations
-    if (batch_idx + 1) % 1000 == 0:
+    # save something every 100 iterations
+    if (batch_idx + 1) % 200 == 0:
       save_checkpoint(opj(config.CKPT_ROOT, args.dataset), epoch, batch_idx + 1, {
-        'epoch': epoch,
-        'iteration': batch_idx + 1,
-        'state_dict': yolo.state_dict()
+          'epoch': epoch,
+          'iteration': batch_idx + 1,
+          'state_dict': yolo.state_dict()
       })
 
 
@@ -105,9 +109,9 @@ if __name__ == '__main__':
   yolo = YOLOv3(cfg, args.reso).cuda()
   start_epoch, start_iteration = args.checkpoint.split('.')
   start_epoch, start_iteration, state_dict = load_checkpoint(
-    opj(config.CKPT_ROOT, args.dataset),
-    int(start_epoch),
-    int(start_iteration)
+      opj(config.CKPT_ROOT, args.dataset),
+      int(start_epoch),
+      int(start_iteration)
   )
   yolo.load_state_dict(state_dict)
   print("Model starts training from epoch %d iteration %d" % (start_epoch, start_iteration))
@@ -122,21 +126,20 @@ if __name__ == '__main__':
   # 4. Training
   print(colored("\n==>", 'blue'), emojify("Training :snowflake:\n"))
   optimizer = optim.SGD(yolo.parameters(), lr=args.lr, momentum=0.9, weight_decay=5e-4)
-  scheduler = lr_scheduler.ReduceLROnPlateau(optimizer, mode='max')
+  scheduler = lr_scheduler.StepLR(optimizer, step_size=100, gamma=0.8)
   best_mAP = 0.0
   for epoch in range(start_epoch, start_epoch+20):
     print("[EPOCH] %d, learning rate = %.5f" % (epoch, optimizer.param_groups[0]['lr']))
-    train(epoch, train_dataloader, yolo, optimizer)
+    train(epoch, train_dataloader, yolo, optimizer, scheduler)
     with torch.no_grad():
       val_loss, val_mAP = val(val_dataloader, yolo)
-    scheduler.step(val_mAP)
     log(writer, 'val_loss', val_loss, epoch)
     log(writer, 'val_mAP', val_mAP, epoch)
     print("Validation mAP =", val_mAP)
     if val_mAP >= best_mAP:
       best_mAP = val_mAP
       save_checkpoint(opj(config.CKPT_ROOT, args.dataset), epoch, len(train_dataloader), {
-        'epoch': epoch,
-        'iteration': len(train_dataloader),
-        'state_dict': yolo.state_dict()
+          'epoch': epoch,
+          'iteration': len(train_dataloader),
+          'state_dict': yolo.state_dict()
       })

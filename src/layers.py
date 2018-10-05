@@ -66,6 +66,7 @@ class DetectionLayer(nn.Module):
 
     @Returns
       detections: (Tensor) feature map with size [B, 13*13*3, 5+#classes]
+        5 => [4 offsets (xc, yc, w, h), objectness score]
     """
     batch_size, _, grid_size, _ = x.size()
     stride = self.reso // grid_size  # no pooling used, stride is the only downsample
@@ -99,7 +100,8 @@ class DetectionLayer(nn.Module):
     detections[..., :4] *= stride  # TODO: ?
 
     # Softmax
-    detections[..., 4:] = torch.sigmoid(x[..., 4:])
+    detections[..., 4] = torch.sigmoid(detections[..., 4])
+    detections[..., 5:] = F.softmax(detections[..., 5:])
 
     return detections
 
@@ -173,8 +175,8 @@ class DetectionLayer(nn.Module):
     pred_ty = torch.sigmoid(y_pred[..., 1])
     pred_tw = y_pred[..., 2]
     pred_th = y_pred[..., 3]
-    pred_conf = torch.sigmoid(y_pred[..., 4])  # no activation because BCEWithLofitLoss has sigmoid layer
-    pred_cls = torch.sigmoid(y_pred[..., 5:])
+    pred_conf = y_pred[..., 4]
+    pred_cls = y_pred[..., 5:]
 
     # 4. Compute loss
     obj_mask = obj_mask.cuda()
@@ -183,32 +185,21 @@ class DetectionLayer(nn.Module):
     gt_tx, gt_ty = gt_tx.cuda(), gt_ty.cuda()
     gt_tw, gt_th = gt_tw.cuda(), gt_th.cuda()
 
+    # average over batch
     MSELoss = nn.MSELoss()
+    BCEWithLogitsLoss = nn.BCEWithLogitsLoss()
     BCELoss = nn.BCELoss()
+    CrossEntropyLoss = nn.CrossEntropyLoss()
 
-    nM = obj_mask.sum().float()  # number of anchors (assigned to targets)]
-    k = nM / total_num
-
-    if nM > 0:
-      loss['x'] = BCELoss(pred_tx * obj_mask, gt_tx * obj_mask)
-      loss['y'] = BCELoss(pred_ty * obj_mask, gt_ty * obj_mask)
-      loss['w'] = MSELoss(pred_tw * obj_mask, gt_tw * obj_mask)
-      loss['h'] = MSELoss(pred_th * obj_mask, gt_th * obj_mask)
-      loss['cls'] = BCELoss(pred_cls[obj_mask == 1], cls_mask[obj_mask == 1])
-      loss['conf'] = BCELoss(pred_conf * obj_mask, obj_mask)
-      loss['non_conf'] = BCELoss(pred_conf * non_obj_mask, non_obj_mask)
-    else:
-      loss['x'] = 0
-      loss['y'] = 0
-      loss['w'] = 0
-      loss['h'] = 0
-      loss['cls'] = 0
-      loss['conf'] = 0
-      loss['non_conf'] = 0
+    loss['x'] = MSELoss(pred_tx[obj_mask == 1], gt_tx[obj_mask == 1])
+    loss['y'] = MSELoss(pred_ty[obj_mask == 1], gt_ty[obj_mask == 1])
+    loss['w'] = MSELoss(pred_tw[obj_mask == 1], gt_tw[obj_mask == 1])
+    loss['h'] = MSELoss(pred_th[obj_mask == 1], gt_th[obj_mask == 1])
+    loss['cls'] = CrossEntropyLoss(pred_cls[obj_mask == 1], torch.argmax(cls_mask[obj_mask == 1], 1))
+    loss['conf'] = BCEWithLogitsLoss(pred_conf[obj_mask == 1], obj_mask[obj_mask == 1])
+    loss['non_conf'] = BCEWithLogitsLoss(pred_conf[non_obj_mask == 1], non_obj_mask[non_obj_mask == 1])
 
     cache = dict()
-    cache['nM'] = nM
-    cache['total_num'] = total_num
 
     return loss, cache
 
@@ -239,53 +230,41 @@ class NMSLayer(nn.Module):
     @Returns
       detections: (Tensor) detection result with size [num_bboxes, [image_batch_idx, 4 offsets, p_obj, max_conf, cls_idx]]
     """
-    batch_size = x.size(0)
+    batch_size, num_bboxes, num_attrs = x.size()
     conf_mask = (x[..., 4] > self.conf_thresh).float().unsqueeze(2)
     x = x * conf_mask
-    x[..., :4] = transform_coord(x[..., :4], src='center', dst='corner')
     detections = torch.Tensor().cuda()
 
     for idx in range(batch_size):
       # 1. Filter low confidence prediction
       pred = x[idx]
+      pred[:, :4] = transform_coord(pred[:, :4], src='center', dst='corner')
+      pred = pred[pred[:, 4].nonzero().squeeze(1)]
       max_score, max_idx = torch.max(pred[:, 5:], 1)  # max score in each row
       max_idx = max_idx.float().unsqueeze(1)
       max_score = max_score.float().unsqueeze(1)
       pred = torch.cat((pred[:, :5], max_score, max_idx), 1)
-      non_zero_pred = pred[torch.nonzero(pred[:, 4]).squeeze(), :].view(-1, 7)
+      pred = pred[pred[:, 5] > 0.3]  # FIXME: 0.3 as variable
 
-      if non_zero_pred.size(0) == 0:  # no objects detected
+      if pred.size(0) == 0:  # no objects detected
         continue
 
-      classes = torch.unique(non_zero_pred[:, -1])
+      classes = torch.unique(pred[:, -1])
       for cls in classes:
-        # 2. Get prediction with particular class
-        cls_mask = non_zero_pred * (non_zero_pred[:, -1] == cls).float().unsqueeze(1)
-        cls_idx = torch.nonzero(cls_mask[:, -2]).squeeze()
-        cls_pred = non_zero_pred[cls_idx].view(-1, 7)
-
-        # 3. Sort by confidence
+        cls_pred = pred[pred[:, -1] == cls]
         conf_sort_idx = torch.sort(cls_pred[:, 4], descending=True)[1]
         cls_pred = cls_pred[conf_sort_idx]
 
-        # 4. Suppress non-maximum
-        # FIXME: avoid duplicate computation
-        import time
-        for i in range(cls_pred.size(0)):
-          try:
-            ious = IoU(cls_pred[i].unsqueeze(0), cls_pred[i+1:])
-          except ValueError:
-            break
-          except IndexError:
-            break
-          iou_mask = (ious < self.nms_thresh).float().unsqueeze(1)
-          cls_pred[i+1:] *= iou_mask
-          non_zero_idx = torch.nonzero(cls_pred[:, 4]).squeeze()
-          cls_pred = cls_pred[non_zero_idx].view(-1, 7)
-        end = time.time()
+        max_preds = []
+        while cls_pred.size(0) > 0:
+          max_preds.append(cls_pred[0].unsqueeze(0))
+          ious = IoU(max_preds[-1], cls_pred)
+          cls_pred = cls_pred[ious < self.nms_thresh]
 
-        batch_idx = cls_pred.new(cls_pred.size(0), 1).fill_(idx)
-        seq = (batch_idx, cls_pred)
-        detections = torch.cat(seq, 1) if detections.size(0) == 0 else torch.cat((detections, torch.cat(seq, 1)))
+        if len(max_preds) > 0:
+          max_preds = torch.cat(max_preds).data
+          batch_idx = max_preds.new(max_preds.size(0), 1).fill_(idx)
+          seq = (batch_idx, max_preds)
+          detections = torch.cat(seq, 1) if detections.size(0) == 0 else torch.cat((detections, torch.cat(seq, 1)))
       
     return detections

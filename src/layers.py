@@ -115,16 +115,15 @@ class DetectionLayer(nn.Module):
           obj_mask[batch_idx, best_anchor, gt_j, gt_i] = 1
           cls_mask[batch_idx, best_anchor, gt_j, gt_i, gt_cls_label] = 1
 
-      MSELoss = nn.MSELoss()
-      BCELoss = nn.BCELoss()
-      CrossEntropyLoss = nn.CrossEntropyLoss()
+      MSELoss = nn.MSELoss(size_average=True, reduce=True)
+      BCELoss = nn.BCELoss(size_average=True, reduce=True)
 
       loss = dict()
       loss['x'] = MSELoss(pred_tx[obj_mask == 1], gt_tx[obj_mask == 1])
       loss['y'] = MSELoss(pred_ty[obj_mask == 1], gt_ty[obj_mask == 1])
       loss['w'] = MSELoss(pred_tw[obj_mask == 1], gt_tw[obj_mask == 1])
       loss['h'] = MSELoss(pred_th[obj_mask == 1], gt_th[obj_mask == 1])
-      loss['conf'] = MSELoss(pred_conf[obj_mask == 1], obj_mask[obj_mask == 1])
+      loss['conf'] = BCELoss(pred_conf[obj_mask == 1], obj_mask[obj_mask == 1])
       loss['cls'] = BCELoss(pred_cls[obj_mask == 1], cls_mask[obj_mask == 1])
       return loss
     else:

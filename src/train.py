@@ -38,6 +38,7 @@ log_dir = opj(config.LOG_ROOT, get_current_time())
 writer = SummaryWriter(log_dir=log_dir)
 os.environ['CUDA_VISIBLE_DEVICES'] = args.gpu
 
+
 def train(epoch, trainloader, yolo, optimizer):
   """Training wrapper
 
@@ -51,6 +52,12 @@ def train(epoch, trainloader, yolo, optimizer):
   tbar = tqdm(trainloader, ncols=80)
   tbar.set_description('training')
   for batch_idx, (names, inputs, targets) in enumerate(tbar):
+    # SGD burn in
+    if (epoch == 0) & (batch_idx <= 1000):
+      lr = 1e-3 * (batch_idx / 1000) ** 4
+      for g in optimizer.param_groups:
+        g['lr'] = lr
+
     optimizer.zero_grad()
     global_step = batch_idx + epoch * len(trainloader)
     inputs = inputs.cuda()
@@ -62,9 +69,9 @@ def train(epoch, trainloader, yolo, optimizer):
     # save something every 200 iterations
     if (batch_idx + 1) % 200 == 0:
       save_checkpoint(opj(config.CKPT_ROOT, args.dataset), epoch, batch_idx + 1, {
-        'epoch': epoch,
-        'iteration': batch_idx + 1,
-        'state_dict': yolo.state_dict()
+          'epoch': epoch,
+          'iteration': batch_idx + 1,
+          'state_dict': yolo.state_dict()
       })
 
 
@@ -105,9 +112,9 @@ if __name__ == '__main__':
   yolo = YOLOv3(cfg, args.reso).cuda()
   start_epoch, start_iteration = args.checkpoint.split('.')
   start_epoch, start_iteration, state_dict = load_checkpoint(
-    opj(config.CKPT_ROOT, args.dataset),
-    int(start_epoch),
-    int(start_iteration)
+      opj(config.CKPT_ROOT, args.dataset),
+      int(start_epoch),
+      int(start_iteration)
   )
   yolo.load_state_dict(state_dict)
   print("Model starts training from epoch %d iteration %d" % (start_epoch, start_iteration))
@@ -121,9 +128,8 @@ if __name__ == '__main__':
 
   # 4. Training
   print(colored("\n==>", 'blue'), emojify("Training :snowflake:\n"))
-  optimizer = optim.SGD(yolo.parameters(), lr=args.lr, momentum=0.9, weight_decay=5e-4)
-  scheduler = lr_scheduler.ReduceLROnPlateau(optimizer, mode='max')
-  best_mAP = 0.0
+  optimizer = optim.SGD(filter(lambda p: p.requires_grad, yolo.parameters()),
+                        lr=args.lr, momentum=0.9, weight_decay=5e-4, nesterov=True)
   for epoch in range(start_epoch, start_epoch+20):
     print("[EPOCH] %d, learning rate = %.5f" % (epoch, optimizer.param_groups[0]['lr']))
     train(epoch, train_dataloader, yolo, optimizer)

@@ -179,34 +179,6 @@ class YOLOv3(nn.Module):
       detections = self.nms(detections)
       return detections
 
-  def _loss(self, y_true):
-    """Compute loss
-
-    @Args
-      y_true: (Tensor) annotations with size [bs, num_bboxes, 5=(xc, yc, w, h, label_id)]
-
-    @Variables
-      y_pred: (Tensor) raw detections with size [bs, ([tx,ty,tw,th,p_obj]+num_classes)*3, grid_size, grid_size]
-    """
-    loss_lambda = {
-      'x': 2.5,
-      'y': 2.5,
-      'w': 2.5,
-      'h': 2.5,
-      'cls': 1.0,
-      'conf': 1.0,
-      'non_conf': 1.0
-    }
-    losses = defaultdict(float)
-    for i, y_pred in self.cache.items():
-      block = self.blocks[i]
-      assert block['type'] == 'yolo'
-      loss, cache = self.module_list[i][0].loss(y_pred, y_true)
-      for name in loss.keys():
-        losses[name] += loss_lambda[name] * loss[name]
-        losses['total'] += loss_lambda[name] * loss[name]
-    return losses, cache
-
   def load_weights(self, path, cut=None):
     """Load darknet weights from disk.
     YOLOv3 is fully convolutional, so only conv layers' weights will be loaded

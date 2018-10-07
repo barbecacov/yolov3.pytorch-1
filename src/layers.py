@@ -31,7 +31,7 @@ class EmptyLayer(nn.Module):
 
 class DetectionLayer(nn.Module):
   """Detection layer
-  
+
   @Args
     anchors: (list) list of anchor box sizes tuple
     num_classes: (int) # classes
@@ -81,7 +81,7 @@ class DetectionLayer(nn.Module):
     pred_tw = x[..., 2].cuda()                      # tw
     pred_th = x[..., 3].cuda()                      # th
     pred_conf = torch.sigmoid(x[..., 4]).cuda()     # objectness
-    pred_cls = F.softmax(x[..., 5:], dim=-1).cuda() # class 
+    pred_cls = F.softmax(x[..., 5:], dim=-1).cuda()  # class
 
     if self.training == True:
       gt_tx = torch.zeros(bs, nA, gs, gs, requires_grad=False).cuda()
@@ -143,96 +143,6 @@ class DetectionLayer(nn.Module):
 
       return detections.view(bs, -1, num_attrs)
 
-  def _loss(self, y_pred, y_true):
-    """Compute loss
-    
-    @Args
-      y_pred: (Tensor) raw offsets predicted feature map with size [bs, ([tx, ty, tw, th, p_obj]+nC)*nA, nG, nG]
-      y_true: (Tensor) scaled to (0,1) true offsets annotations with size [bs, nB, [xc, yc, w, h] + label_id]
-    
-    @Returns
-      y_true: (Tensor)
-    """
-    loss = dict()
-
-    # 1. Prepare
-    # 1.1 re-organize y_pred
-    # [bs, (5+nC)*nA, gs, gs] => [bs, nA, gs, gs, 5+nC]
-    from IPython import embed
-    embed()
-    bs, _, gs, _ = y_pred.size()
-    nA = len(self.anchors)
-    nC = self.num_classes
-    y_pred = y_pred.view(bs, nA, 5+nC, gs, gs)
-    y_pred = y_pred.permute(0, 1, 3, 4, 2).contiguous()
-
-    # 1.3 prepare anchor boxes
-    stride = self.reso // gs
-    anchors = [(a[0]/stride, a[1]/stride) for a in self.anchors]
-    anchor_bboxes = torch.zeros(3, 4).cuda()
-    anchor_bboxes[:, 2:] = torch.Tensor(anchors)
-
-    # 2. Build gt [tx, ty, tw, th] and masks
-    total_num = 0
-    gt_tx = torch.zeros(bs, nA, gs, gs, requires_grad=False)
-    gt_ty = torch.zeros(bs, nA, gs, gs, requires_grad=False)
-    gt_tw = torch.zeros(bs, nA, gs, gs, requires_grad=False)
-    gt_th = torch.zeros(bs, nA, gs, gs, requires_grad=False)
-    obj_mask = torch.zeros(bs, nA, gs, gs, requires_grad=False)
-    non_obj_mask = torch.ones(bs, nA, gs, gs, requires_grad=False)
-    cls_mask = torch.zeros(bs, nA, gs, gs, nC, requires_grad=False)
-    for batch_idx in range(bs):
-      for box_idx, y_true_one in enumerate(y_true[batch_idx]):
-        gt_bbox = y_true_one[:4] * gs  # scale bbox relative to feature map
-        gt_cls_label = int(y_true_one[4])
-
-        gt_xc, gt_yc, gt_w, gt_h = gt_bbox[0:4]
-        gt_i, gt_j = int(gt_xc), int(gt_yc)
-        gt_box_shape = torch.Tensor([0, 0, gt_w, gt_h]).unsqueeze(0).cuda()
-        anchor_ious = IoU(gt_box_shape, anchor_bboxes, format='center')
-        best_anchor = np.argmax(anchor_ious)
-        anchor_w, anchor_h = anchors[best_anchor]
-
-        gt_tw[batch_idx, best_anchor, gt_i, gt_j] = torch.log(gt_w / anchor_w + 1e-16)
-        gt_th[batch_idx, best_anchor, gt_i, gt_j] = torch.log(gt_h / anchor_h + 1e-16)
-        gt_tx[batch_idx, best_anchor, gt_i, gt_j] = gt_xc - gt_i
-        gt_ty[batch_idx, best_anchor, gt_i, gt_j] = gt_yc - gt_j
-
-        obj_mask[batch_idx, best_anchor, gt_i, gt_j] = 1
-        non_obj_mask[batch_idx, anchor_ious > 0.5] = 0  # FIXME: 0.5 as variable
-        cls_mask[batch_idx, best_anchor, gt_i, gt_j, gt_cls_label] = 1
-
-    # 3. activate raw y_pred
-    pred_tx = torch.sigmoid(y_pred[..., 0])  # gt tx/ty are not deactivated
-    pred_ty = torch.sigmoid(y_pred[..., 1])
-    pred_tw = y_pred[..., 2]
-    pred_th = y_pred[..., 3]
-    pred_conf = torch.sigmoid(y_pred[..., 4])
-    pred_cls = y_pred[..., 5:]
-
-    # 4. Compute loss
-    obj_mask = obj_mask.cuda()
-    non_obj_mask = non_obj_mask.cuda()
-    cls_mask = cls_mask.cuda()
-    gt_tx, gt_ty = gt_tx.cuda(), gt_ty.cuda()
-    gt_tw, gt_th = gt_tw.cuda(), gt_th.cuda()
-
-    MSELoss = nn.MSELoss()
-    BCELoss = nn.BCELoss()
-    CrossEntropyLoss = nn.CrossEntropyLoss()
-
-    loss['x'] = MSELoss(pred_tx[obj_mask == 1], gt_tx[obj_mask == 1])
-    loss['y'] = MSELoss(pred_ty[obj_mask == 1], gt_ty[obj_mask == 1])
-    loss['w'] = MSELoss(pred_tw[obj_mask == 1], gt_tw[obj_mask == 1])
-    loss['h'] = MSELoss(pred_th[obj_mask == 1], gt_th[obj_mask == 1])
-    loss['cls'] = CrossEntropyLoss(pred_cls[obj_mask == 1], cls_mask[obj_mask == 1])
-    loss['conf'] = BCELoss(pred_conf[obj_mask == 1], obj_mask[obj_mask == 1])
-    loss['non_conf'] = BCELoss(pred_conf[obj_mask == 0], obj_mask[obj_mask == 0])
-
-    cache = dict()
-
-    return loss, cache
-
 
 class NMSLayer(nn.Module):
   """
@@ -280,7 +190,7 @@ class NMSLayer(nn.Module):
       except Exception:  # no object detected
         continue
 
-      for cls in classes:        
+      for cls in classes:
         cls_pred = non_zero_pred[non_zero_pred[:, -1] == cls]
         conf_sort_idx = torch.sort(cls_pred[:, 4], descending=True)[1]
         cls_pred = cls_pred[conf_sort_idx]

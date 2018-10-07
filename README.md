@@ -1,6 +1,7 @@
 # yolov3.pytorch
 
-* 2018/10/03 **UPDATE** Loss will converge after 1 epoch but the model couldn't generate any bounding boxes. Details could be seen in issue [#1](https://github.com/ECer23/yolov3.pytorch/issues/1)
+* 2018/10/07 Roll back and fix evaluation error. Loss function and mAP is still not working, while evaluation is working.
+* 2018/10/03 Loss will converge after 1 epoch but the model couldn't generate any bounding boxes. Details could be seen in issue [#1](https://github.com/ECer23/yolov3.pytorch/issues/1)
 * 2018/10/02 Could load pre trained darknet-53 to train from scartch
 * 2018/09/30 mAP evaluation implemented
 

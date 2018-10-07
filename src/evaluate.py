@@ -22,11 +22,13 @@ def parse_arg():
   parser.add_argument('--dataset', default='coco', choices=['tejani', 'coco'], type=str, help="Dataset name")
   parser.add_argument('--checkpoint', default='-1.-1', type=str, help="Checkpoint name in format: `epoch.iteration`")
   parser.add_argument('--save', action='store_true', help="Save image during validation")
+  parser.add_argument('--gpu', default='0', help="GPU ids")
   return parser.parse_args()
 
 
 args = parse_arg()
 cfg = config.network[args.dataset]['cfg']
+os.environ['CUDA_VISIBLE_DEVICES'] = args.gpu
 
 
 def val(valloader, yolo, save_img=True):
@@ -53,20 +55,18 @@ def val(valloader, yolo, save_img=True):
       try:
         detection = detections[detections[:, 0] == 0]
       except Exception:
-        print(emojify("\nDetection disappeared :scream:\n"))
         img = Image.open(img_path)
       else:
         img = draw_detection(img_path, detection, yolo.reso, type='pred')
 
-      if batch_idx % 20 == 0:
-        img.save(opj(config.evaluate['result_dir'], img_name))
+      img.save(opj(config.evaluate['result_dir'], img_name))
 
   return mAPs
 
 
 if __name__ == '__main__':
   # 1. Parsing arguments
-  print(emojify("\n==> Parsing arguments :hammer:\n"))
+  print(emojify("\n==> Parsing arguments :zap:\n"))
   assert args.reso % 32 == 0, emojify("Resolution must be interger times of 32 :shit:")
   for arg in vars(args):
     print(arg, ':', getattr(args, arg))
@@ -80,10 +80,10 @@ if __name__ == '__main__':
   print(emojify("\n==> Loading network ... :hourglass:\n"))
   yolo = YOLOv3(cfg, args.reso).cuda()
   start_epoch, start_iteration = args.checkpoint.split('.')
-  start_epoch, start_iteration, best_mAP, state_dict = load_checkpoint(
-    opj(config.CKPT_ROOT, args.dataset),
-    int(start_epoch),
-    int(start_iteration)
+  start_epoch, start_iteration, state_dict = load_checkpoint(
+      opj(config.CKPT_ROOT, args.dataset),
+      int(start_epoch),
+      int(start_iteration)
   )
   yolo.load_state_dict(state_dict)
   print("Model starts training from epoch %d iteration %d" % (start_epoch, start_iteration))

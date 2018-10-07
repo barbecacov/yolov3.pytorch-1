@@ -37,7 +37,6 @@ class DetectionLayer(nn.Module):
     num_classes: (int) # classes
     reso: (int) original image resolution
     ignore_thresh: (float)
-    TODO: cache ?
   """
 
   def __init__(self, anchors, num_classes, reso, ignore_thresh):
@@ -47,7 +46,7 @@ class DetectionLayer(nn.Module):
     self.reso = reso
     self.ignore_thresh = ignore_thresh
 
-  def forward(self, x):
+  def forward(self, x, y_true=None):
     """
     Transform feature map into 2-D tensor. Transformation includes
     1. Re-organize tensor to make each row correspond to a bbox
@@ -57,53 +56,94 @@ class DetectionLayer(nn.Module):
     3. Transform width and height
       bw = pw * exp(tw)
       bh = ph * exp(th)
-    4. Softmax
+    4. Activation
 
     @Args
-      x: (Tensor) feature map with size [B, (5+#classes)*3, grid_size, grid_size]
-        5 => [4 offsets (xc, yc, w, h), objectness score]
-        3 => # anchor boxes pixel-wise
+      x: (Tensor) feature map with size [bs, (5+nC)*nA, gs, gs]
+        5 => [4 offsets (xc, yc, w, h), objectness]
 
     @Returns
-      detections: (Tensor) feature map with size [B, 13*13*3, 5+#classes]
+      detections: (Tensor) feature map with size [bs, nA, gs, gs, 5+nC]
     """
-    batch_size, _, grid_size, _ = x.size()
-    stride = self.reso // grid_size  # no pooling used, stride is the only downsample
+    bs, _, gs, _ = x.size()
+    stride = self.reso // gs  # no pooling used, stride is the only downsample
     num_attrs = 5 + self.num_classes  # tx, ty, tw, th, p0
-    num_anchors = len(self.anchors)
-    anchors = [(a[0]/stride, a[1]/stride) for a in self.anchors]  # anchor for feature map
+    nA = len(self.anchors)
+    scaled_anchors = torch.Tensor([(a_w / stride, a_h / stride) for a_w, a_h in self.anchors]).cuda()
 
-    # Re-organize
-    # [B, (5+num_classes)*3, grid_size, grid_size]
-    # => [B, (5+num_classes)*3, grid_size*grid_size]
-    # => [B, 3*grid_size*grid_size, (5+num_classes)]
-    x = x.view(batch_size, num_attrs*num_anchors, grid_size*grid_size)
-    x = x.transpose(1, 2).contiguous()
-    x = x.view(batch_size, grid_size*grid_size*num_anchors, num_attrs)
-    detections = x.new(x.size()).cuda()  # detections.size() = [B, 3*13*13, (5+num_classes)]
+    # Re-organize [bs, (5+nC)*nA, gs, gs] => [bs, nA, gs, gs, 5+nC]
+    x = x.view(bs, nA, num_attrs, gs, gs).permute(0, 1, 3, 4, 2).contiguous()
 
-    # Transform center coordinates
-    # x_y_offset = [[0,0]*3, [0,1]*3, [0,2]*3, ..., [12,12]*3]
-    grid_len = np.arange(grid_size)
-    a, b = np.meshgrid(grid_len, grid_len)
-    x_offset = torch.FloatTensor(a).view(-1, 1).cuda()
-    y_offset = torch.FloatTensor(b).view(-1, 1).cuda()
-    x_y_offset = torch.cat((x_offset, y_offset), 1).repeat(1, num_anchors).view(-1, 2).unsqueeze(0)
-    detections[..., 0:2] = torch.sigmoid(x[..., 0:2]) + x_y_offset[..., 0:2]  # bxy = sigmoid(txy) + cxy
+    detections = torch.Tensor(bs, nA, gs, gs, num_attrs).cuda()
 
-    # Log transform
-    # anchors: [3,2] => [13*13*3, 2]
-    anchors = torch.FloatTensor(anchors).cuda()
-    anchors = anchors.repeat(grid_size*grid_size, 1).unsqueeze(0)
-    detections[..., 2:4] = torch.exp(x[..., 2:4]) * anchors  # bwh = pwh * exp(twh)
-    detections[..., :4] *= stride  # TODO: ?
+    pred_tx = torch.sigmoid(x[..., 0]).cuda()       # center relative to (i,j)
+    pred_ty = torch.sigmoid(x[..., 1]).cuda()       # center relative to (i,j)
+    pred_tw = x[..., 2].cuda()                      # tw
+    pred_th = x[..., 3].cuda()                      # th
+    pred_conf = torch.sigmoid(x[..., 4]).cuda()     # objectness
+    pred_cls = F.softmax(x[..., 5:], dim=-1).cuda() # class 
 
-    # Softmax
-    detections[..., 4:] = torch.sigmoid(x[..., 4:])
+    if self.training == True:
+      gt_tx = torch.zeros(bs, nA, gs, gs, requires_grad=False).cuda()
+      gt_ty = torch.zeros(bs, nA, gs, gs, requires_grad=False).cuda()
+      gt_tw = torch.zeros(bs, nA, gs, gs, requires_grad=False).cuda()
+      gt_th = torch.zeros(bs, nA, gs, gs, requires_grad=False).cuda()
+      obj_mask = torch.zeros(bs, nA, gs, gs, requires_grad=False).cuda()
+      cls_mask = torch.zeros(bs, nA, gs, gs, self.num_classes, requires_grad=False).cuda()
+      for batch_idx in range(bs):
+        for box_idx, y_true_one in enumerate(y_true[batch_idx]):
+          y_true_one = y_true_one.cuda()
+          gt_bbox = y_true_one[:4] * gs  # scale bbox relative to feature map
+          gt_cls_label = int(y_true_one[4])
 
-    return detections
+          gt_xc, gt_yc, gt_w, gt_h = gt_bbox[0:4]
+          gt_i = torch.clamp(gt_xc.long(), min=0, max=gs - 1).cuda()
+          gt_j = torch.clamp(gt_yc.long(), min=0, max=gs - 1).cuda()
 
-  def loss(self, y_pred, y_true):
+          gt_box_shape = torch.Tensor([0, 0, gt_w, gt_h]).unsqueeze(0).cuda()
+          anchor_bboxes = torch.zeros(3, 4).cuda()
+          anchor_bboxes[:, 2:] = scaled_anchors
+          anchor_ious = IoU(gt_box_shape, anchor_bboxes, format='center')
+          best_anchor = np.argmax(anchor_ious).item()
+          anchor_w, anchor_h = scaled_anchors[best_anchor]
+
+          gt_tw[batch_idx, best_anchor, gt_j, gt_i] = torch.log(gt_w / anchor_w + 1e-16)
+          gt_th[batch_idx, best_anchor, gt_j, gt_i] = torch.log(gt_h / anchor_h + 1e-16)
+          gt_tx[batch_idx, best_anchor, gt_j, gt_i] = gt_xc - gt_i.float()
+          gt_ty[batch_idx, best_anchor, gt_j, gt_i] = gt_yc - gt_j.float()
+
+          obj_mask[batch_idx, best_anchor, gt_j, gt_i] = 1
+          cls_mask[batch_idx, best_anchor, gt_j, gt_i, gt_cls_label] = 1
+
+      MSELoss = nn.MSELoss()
+      BCELoss = nn.BCELoss()
+      CrossEntropyLoss = nn.CrossEntropyLoss()
+
+      loss = dict()
+      loss['x'] = MSELoss(pred_tx[obj_mask == 1], gt_tx[obj_mask == 1])
+      loss['y'] = MSELoss(pred_ty[obj_mask == 1], gt_ty[obj_mask == 1])
+      loss['w'] = MSELoss(pred_tw[obj_mask == 1], gt_tw[obj_mask == 1])
+      loss['h'] = MSELoss(pred_th[obj_mask == 1], gt_th[obj_mask == 1])
+      loss['conf'] = MSELoss(pred_conf[obj_mask == 1], obj_mask[obj_mask == 1])
+      loss['cls'] = BCELoss(pred_cls[obj_mask == 1], cls_mask[obj_mask == 1])
+      return loss
+    else:
+      grid_x = torch.arange(gs).repeat(gs, 1).view([1, 1, gs, gs]).float().cuda()
+      grid_y = torch.arange(gs).repeat(gs, 1).t().view([1, 1, gs, gs]).float().cuda()
+      anchor_w = scaled_anchors[:, 0:1].view((1, nA, 1, 1))
+      anchor_h = scaled_anchors[:, 1:2].view((1, nA, 1, 1))
+
+      detections[..., 0] = pred_tx + grid_x
+      detections[..., 1] = pred_ty + grid_y
+      detections[..., 2] = torch.exp(pred_tw) * anchor_w
+      detections[..., 3] = torch.exp(pred_th) * anchor_h
+      detections[..., :4] *= stride  # scale relative to feature map
+      detections[..., 4] = pred_conf
+      detections[..., 5:] = pred_cls
+
+      return detections.view(bs, -1, num_attrs)
+
+  def _loss(self, y_pred, y_true):
     """Compute loss
     
     @Args
@@ -112,23 +152,19 @@ class DetectionLayer(nn.Module):
     
     @Returns
       y_true: (Tensor)
-    
-    @Variables  TODO: rename variables
-      bs: (int) batch size
-      nA: (int) number of anchors
-      gs: (int) grid size
-      nB: (int) number of bboxes
     """
     loss = dict()
 
     # 1. Prepare
     # 1.1 re-organize y_pred
-    # [bs, (5+nC)*nA, gs, gs] => [bs, num_anchors, gs, gs, 5+nC]
+    # [bs, (5+nC)*nA, gs, gs] => [bs, nA, gs, gs, 5+nC]
+    from IPython import embed
+    embed()
     bs, _, gs, _ = y_pred.size()
     nA = len(self.anchors)
     nC = self.num_classes
     y_pred = y_pred.view(bs, nA, 5+nC, gs, gs)
-    y_pred = y_pred.permute(0, 1, 3, 4, 2)
+    y_pred = y_pred.permute(0, 1, 3, 4, 2).contiguous()
 
     # 1.3 prepare anchor boxes
     stride = self.reso // gs
@@ -137,7 +173,6 @@ class DetectionLayer(nn.Module):
     anchor_bboxes[:, 2:] = torch.Tensor(anchors)
 
     # 2. Build gt [tx, ty, tw, th] and masks
-    # TODO: f1 score implementation
     total_num = 0
     gt_tx = torch.zeros(bs, nA, gs, gs, requires_grad=False)
     gt_ty = torch.zeros(bs, nA, gs, gs, requires_grad=False)
@@ -148,7 +183,6 @@ class DetectionLayer(nn.Module):
     cls_mask = torch.zeros(bs, nA, gs, gs, nC, requires_grad=False)
     for batch_idx in range(bs):
       for box_idx, y_true_one in enumerate(y_true[batch_idx]):
-        total_num += 1
         gt_bbox = y_true_one[:4] * gs  # scale bbox relative to feature map
         gt_cls_label = int(y_true_one[4])
 
@@ -173,8 +207,8 @@ class DetectionLayer(nn.Module):
     pred_ty = torch.sigmoid(y_pred[..., 1])
     pred_tw = y_pred[..., 2]
     pred_th = y_pred[..., 3]
-    pred_conf = torch.sigmoid(y_pred[..., 4])  # no activation because BCEWithLofitLoss has sigmoid layer
-    pred_cls = torch.sigmoid(y_pred[..., 5:])
+    pred_conf = torch.sigmoid(y_pred[..., 4])
+    pred_cls = y_pred[..., 5:]
 
     # 4. Compute loss
     obj_mask = obj_mask.cuda()
@@ -185,30 +219,17 @@ class DetectionLayer(nn.Module):
 
     MSELoss = nn.MSELoss()
     BCELoss = nn.BCELoss()
+    CrossEntropyLoss = nn.CrossEntropyLoss()
 
-    nM = obj_mask.sum().float()  # number of anchors (assigned to targets)]
-    k = nM / total_num
-
-    if nM > 0:
-      loss['x'] = BCELoss(pred_tx * obj_mask, gt_tx * obj_mask)
-      loss['y'] = BCELoss(pred_ty * obj_mask, gt_ty * obj_mask)
-      loss['w'] = MSELoss(pred_tw * obj_mask, gt_tw * obj_mask)
-      loss['h'] = MSELoss(pred_th * obj_mask, gt_th * obj_mask)
-      loss['cls'] = BCELoss(pred_cls[obj_mask == 1], cls_mask[obj_mask == 1])
-      loss['conf'] = BCELoss(pred_conf * obj_mask, obj_mask)
-      loss['non_conf'] = BCELoss(pred_conf * non_obj_mask, non_obj_mask)
-    else:
-      loss['x'] = 0
-      loss['y'] = 0
-      loss['w'] = 0
-      loss['h'] = 0
-      loss['cls'] = 0
-      loss['conf'] = 0
-      loss['non_conf'] = 0
+    loss['x'] = MSELoss(pred_tx[obj_mask == 1], gt_tx[obj_mask == 1])
+    loss['y'] = MSELoss(pred_ty[obj_mask == 1], gt_ty[obj_mask == 1])
+    loss['w'] = MSELoss(pred_tw[obj_mask == 1], gt_tw[obj_mask == 1])
+    loss['h'] = MSELoss(pred_th[obj_mask == 1], gt_th[obj_mask == 1])
+    loss['cls'] = CrossEntropyLoss(pred_cls[obj_mask == 1], cls_mask[obj_mask == 1])
+    loss['conf'] = BCELoss(pred_conf[obj_mask == 1], obj_mask[obj_mask == 1])
+    loss['non_conf'] = BCELoss(pred_conf[obj_mask == 0], obj_mask[obj_mask == 0])
 
     cache = dict()
-    cache['nM'] = nM
-    cache['total_num'] = total_num
 
     return loss, cache
 
@@ -234,58 +255,45 @@ class NMSLayer(nn.Module):
   def forward(self, x):
     """
     @Args
-      x: (Tensor) detection feature map, with size [batch_idx, num_bboxes, [x,y,w,h,p_obj]+num_classes]
+      x: (Tensor) detection feature map, with size [bs, num_bboxes, [x,y,w,h,p_obj]+num_classes]
 
     @Returns
       detections: (Tensor) detection result with size [num_bboxes, [image_batch_idx, 4 offsets, p_obj, max_conf, cls_idx]]
     """
-    batch_size = x.size(0)
+    bs, num_bboxes, num_attrs = x.size()
     conf_mask = (x[..., 4] > self.conf_thresh).float().unsqueeze(2)
     x = x * conf_mask
-    x[..., :4] = transform_coord(x[..., :4], src='center', dst='corner')
     detections = torch.Tensor().cuda()
 
-    for idx in range(batch_size):
-      # 1. Filter low confidence prediction
+    for idx in range(bs):
       pred = x[idx]
-      max_score, max_idx = torch.max(pred[:, 5:], 1)  # max score in each row
-      max_idx = max_idx.float().unsqueeze(1)
-      max_score = max_score.float().unsqueeze(1)
-      pred = torch.cat((pred[:, :5], max_score, max_idx), 1)
-      non_zero_pred = pred[torch.nonzero(pred[:, 4]).squeeze(), :].view(-1, 7)
+      pred[:, :4] = transform_coord(pred[:, :4], src='center', dst='corner')
 
-      if non_zero_pred.size(0) == 0:  # no objects detected
+      try:
+        non_zero_pred = pred[pred[:, 4].nonzero().squeeze(1)]
+        max_score, max_idx = torch.max(non_zero_pred[:, 5:], 1)
+        max_idx = max_idx.float().unsqueeze(1)
+        max_score = max_score.float().unsqueeze(1)
+        non_zero_pred = torch.cat((non_zero_pred[:, :5], max_score, max_idx), 1)
+        non_zero_pred = non_zero_pred[non_zero_pred[:, 5] > 0.3]  # FIXME: 0.3 as variable?
+        classes = torch.unique(non_zero_pred[:, -1])
+      except Exception:  # no object detected
         continue
 
-      classes = torch.unique(non_zero_pred[:, -1])
-      for cls in classes:
-        # 2. Get prediction with particular class
-        cls_mask = non_zero_pred * (non_zero_pred[:, -1] == cls).float().unsqueeze(1)
-        cls_idx = torch.nonzero(cls_mask[:, -2]).squeeze()
-        cls_pred = non_zero_pred[cls_idx].view(-1, 7)
-
-        # 3. Sort by confidence
+      for cls in classes:        
+        cls_pred = non_zero_pred[non_zero_pred[:, -1] == cls]
         conf_sort_idx = torch.sort(cls_pred[:, 4], descending=True)[1]
         cls_pred = cls_pred[conf_sort_idx]
+        max_preds = []
+        while cls_pred.size(0) > 0:
+          max_preds.append(cls_pred[0].unsqueeze(0))
+          ious = IoU(max_preds[-1], cls_pred)
+          cls_pred = cls_pred[ious < self.nms_thresh]
 
-        # 4. Suppress non-maximum
-        # FIXME: avoid duplicate computation
-        import time
-        for i in range(cls_pred.size(0)):
-          try:
-            ious = IoU(cls_pred[i].unsqueeze(0), cls_pred[i+1:])
-          except ValueError:
-            break
-          except IndexError:
-            break
-          iou_mask = (ious < self.nms_thresh).float().unsqueeze(1)
-          cls_pred[i+1:] *= iou_mask
-          non_zero_idx = torch.nonzero(cls_pred[:, 4]).squeeze()
-          cls_pred = cls_pred[non_zero_idx].view(-1, 7)
-        end = time.time()
+        if len(max_preds) > 0:
+          max_preds = torch.cat(max_preds).data
+          batch_idx = max_preds.new(max_preds.size(0), 1).fill_(idx)
+          seq = (batch_idx, max_preds)
+          detections = torch.cat(seq, 1) if detections.size(0) == 0 else torch.cat((detections, torch.cat(seq, 1)))
 
-        batch_idx = cls_pred.new(cls_pred.size(0), 1).fill_(idx)
-        seq = (batch_idx, cls_pred)
-        detections = torch.cat(seq, 1) if detections.size(0) == 0 else torch.cat((detections, torch.cat(seq, 1)))
-      
     return detections

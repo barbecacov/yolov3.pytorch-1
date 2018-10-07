@@ -255,6 +255,6 @@ def prepare_val_dataset(name, reso, batch_size=32):
     path = config.datasets[name]
     img_datasets = CocoDataset(root=path['val_imgs'], annFile=path['val_anno'], transform=transform)
 
-  dataloder = torch.utils.data.DataLoader(img_datasets, batch_size=batch_size, num_workers=4, collate_fn=CocoDataset.collate_fn)
+  dataloder = torch.utils.data.DataLoader(img_datasets, batch_size=batch_size, num_workers=4, collate_fn=CocoDataset.collate_fn, shuffle=True)
 
   return img_datasets, dataloder

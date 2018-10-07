@@ -21,7 +21,6 @@ class YOLOv3(nn.Module):
     super(YOLOv3, self).__init__()
     self.blocks = parse_cfg(cfgfile)
     self.reso = reso
-    self.cache = dict()  # cache for computing loss
     self.module_list = self.build_model(self.blocks)
     self.nms = NMSLayer()
 
@@ -121,7 +120,7 @@ class YOLOv3(nn.Module):
 
     return module_list
 
-  def forward(self, x):
+  def forward(self, x, y_true=None):
     """Forwarad pass of YOLO v3
 
     @Args
@@ -134,7 +133,8 @@ class YOLOv3(nn.Module):
       detections: (Tensor) detection result with size [num_bboxes, [batch idx, x1, y1, x2, y2, p0, conf, label]]
     """
     detections = torch.Tensor().cuda()  # detection results
-    outputs = dict()   # output cache for route layer
+    outputs = dict()  # output cache for route layer
+    self.loss = defaultdict(float)
 
     for i, block in enumerate(self.blocks):
       # Convolutional, upsample, maxpooling layer
@@ -164,17 +164,22 @@ class YOLOv3(nn.Module):
         outputs[i] = x
 
       elif block['type'] == 'yolo':
-        self.cache[i] = x  # cache for loss
-        x = self.module_list[i](x)
-        detections = x if len(detections.size()) == 1 else torch.cat((detections, x), 1)
+        if self.training == True:
+          loss_part = self.module_list[i][0](x, y_true)
+          for key, value in loss_part.items():
+            self.loss[key] += value
+            self.loss['total'] += value
+        else:
+          x = self.module_list[i][0](x)
+          detections = x if len(detections.size()) == 1 else torch.cat((detections, x), 1)
         outputs[i] = outputs[i-1]  # skip
 
+    # return detection result only when evaluation
     if self.training == False:
       detections = self.nms(detections)
+      return detections
 
-    return detections
-
-  def loss(self, y_true):
+  def _loss(self, y_true):
     """Compute loss
 
     @Args
@@ -190,7 +195,7 @@ class YOLOv3(nn.Module):
       'h': 2.5,
       'cls': 1.0,
       'conf': 1.0,
-      'non_conf': 0.1
+      'non_conf': 1.0
     }
     losses = defaultdict(float)
     for i, y_pred in self.cache.items():
@@ -285,7 +290,6 @@ if __name__ == '__main__':
     'epoch': 0,
     'iteration': 0,
     'state_dict': model.state_dict(),
-    'mAP': 0  # FIXME: ?
   })
 
   model = YOLOv3(config.network['coco']['cfg'], 416).cuda()
@@ -296,5 +300,4 @@ if __name__ == '__main__':
     'epoch': -1,
     'iteration': -1,
     'state_dict': model.state_dict(),
-    'mAP': 0  # FIXME: ?
   })

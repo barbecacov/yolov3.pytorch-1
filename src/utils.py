@@ -199,7 +199,7 @@ def load_checkpoint(checkpoint_dir, epoch, iteration):
   """
   path = opj(checkpoint_dir, str(epoch) + '.' + str(iteration) + '.ckpt')
   if not os.path.isfile(path):
-    raise Exception(emojify("Checkpoint in epoch %d doesn't exist :sob:" % epoch))
+    raise Exception(emojify("Checkpoint in epoch %d doesn't exist :poop:" % epoch))
 
   checkpoint = torch.load(path)
   start_epoch = checkpoint['epoch']

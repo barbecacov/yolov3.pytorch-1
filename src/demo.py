@@ -39,13 +39,13 @@ if __name__ == '__main__':
   print(colored("\n==>", 'blue'), emojify("Loading network ... :hourglass:\n"))
   yolo = YOLOv3(cfg, args.reso).cuda()
   start_epoch, start_iteration = args.checkpoint.split('.')
-  start_epoch, start_iteration, best_mAP, state_dict = load_checkpoint(
+  start_epoch, start_iteration, state_dict = load_checkpoint(
     opj(config.CKPT_ROOT, args.dataset),
     int(start_epoch),
     int(start_iteration)
   )
   yolo.load_state_dict(state_dict)
-  print("Model starts training from epoch %d iteration %d, with mAP %.2f%%" % (start_epoch, start_iteration, best_mAP * 100))
+  print("Model starts training from epoch %d iteration %d" % (start_epoch, start_iteration))
 
   print(colored("\n==>", 'blue'), emojify("Evaluation ...\n"))
   yolo.eval()

@@ -14,9 +14,9 @@ This repository is used for object detection. The algorithm is based on [YOLOv3:
 
 ## Train
 
-### How to train the model
+### How to train on COCO
 
-1. Download [COCO detection](http://cocodataset.org/#download) dataset and annotions, or prepare your own dataset follow the instructions in [Train on custom dataset](https://github.com/ECer23/yolov3.pytorch#train-on-custom-dataset)
+1. Download [COCO detection](http://cocodataset.org/#download) dataset and annotions, or prepare your own dataset follow the instructions in [How to train on custom dataset](https://github.com/ECer23/yolov3.pytorch#train-on-custom-dataset)
 2. Download official pre-trained Darknet53 weights on ImageNet [here](https://pjreddie.com/media/files/darknet53.conv.74)
 3. Transform the weights to PyTorch readable file `0.ckpt` by running
     ```bash
@@ -37,31 +37,30 @@ This repository is used for object detection. The algorithm is based on [YOLOv3:
     ```
 5. (optional) Visualize the training process by running `tensorboard --logdir logs`
 
-### Train on custom dataset
+### How to train on custom dataset
 
-In `dataset.py`, you can implement your own dataset by writing an inherited class from `torch.utils.data.dataset.Dataset`. The core function is `__getitem__`, which return data for `DataLoader`. Details can be viewed in `dataset.py`
+1. Implement your own dataset in `dataset.py` by writing an inherited class from `torch.utils.data.dataset.Dataset`. The core function is `__getitem__`, which return data for `DataLoader`. Details can be viewed in `dataset.py`. Here is an example
 
-```python
-# user defined dataset example
+    ```python
+    # user defined dataset example
 
-class TestDataset(torch.utils.data.dataset.Dataset):
-  def __init__(self, imgs_dir, transform):
-    # init the datset
+    class TestDataset(torch.utils.data.dataset.Dataset):
+    def __init__(self, imgs_dir, transform):
+        # init the datset
 
-  def __getitem__(self, index):
-    # return (img_tenosr, labels)
+    def __getitem__(self, index):
+        # return (img_tenosr, labels)
 
-  def __len__(self):
-    # return length of dataset
-```
+    def __len__(self):
+        # return length of dataset
+    ```
 
-If you want to train on COCO, just use `CocoDataset` class. Please install [COCO Python API](https://github.com/cocodataset/cocoapi), which is requried by PyTorch's COCO dataset loader.
+2. To be continued ...
 
-I've implemented `prepare_train_dataset` in `dataset.py` to prepare COCO dataloader. You can re-implement this function to adapt to your custom dataset.
 
 ### Training visualization
 
-![](https://raw.githubusercontent.com/ECer23/yolov3.pytorch/master/assets/demo.png)
+![](https://raw.githubusercontent.com/ECer23/yolov3.pytorch/master/assets/tensorboard.png)
 
 ## Evaluation
 

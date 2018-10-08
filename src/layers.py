@@ -81,7 +81,10 @@ class DetectionLayer(nn.Module):
     pred_tw = x[..., 2].cuda()                      # tw
     pred_th = x[..., 3].cuda()                      # th
     pred_conf = torch.sigmoid(x[..., 4]).cuda()     # objectness
-    pred_cls = F.softmax(x[..., 5:], dim=-1).cuda()  # class
+    if self.training == True:
+      pred_cls = x[..., 5:].cuda()  # softmax in cross entropy
+    else:
+      pred_cls = F.softmax(x[..., 5:], dim=-1).cuda()  # class
 
     if self.training == True:
       gt_tx = torch.zeros(bs, nA, gs, gs, requires_grad=False).cuda()
@@ -89,7 +92,7 @@ class DetectionLayer(nn.Module):
       gt_tw = torch.zeros(bs, nA, gs, gs, requires_grad=False).cuda()
       gt_th = torch.zeros(bs, nA, gs, gs, requires_grad=False).cuda()
       obj_mask = torch.zeros(bs, nA, gs, gs, requires_grad=False).cuda()
-      cls_mask = torch.zeros(bs, nA, gs, gs, self.num_classes, requires_grad=False).cuda()
+      cls_mask = torch.zeros(bs, nA, gs, gs, requires_grad=False).cuda()
       for batch_idx in range(bs):
         for box_idx, y_true_one in enumerate(y_true[batch_idx]):
           y_true_one = y_true_one.cuda()
@@ -113,18 +116,20 @@ class DetectionLayer(nn.Module):
           gt_ty[batch_idx, best_anchor, gt_j, gt_i] = gt_yc - gt_j.float()
 
           obj_mask[batch_idx, best_anchor, gt_j, gt_i] = 1
-          cls_mask[batch_idx, best_anchor, gt_j, gt_i, gt_cls_label] = 1
+          cls_mask[batch_idx, best_anchor, gt_j, gt_i] = gt_cls_label
 
       MSELoss = nn.MSELoss(size_average=True, reduce=True)
       BCELoss = nn.BCELoss(size_average=True, reduce=True)
+      CELoss = nn.CrossEntropyLoss(size_average=True, reduce=True)
 
       loss = dict()
       loss['x'] = MSELoss(pred_tx[obj_mask == 1], gt_tx[obj_mask == 1])
       loss['y'] = MSELoss(pred_ty[obj_mask == 1], gt_ty[obj_mask == 1])
       loss['w'] = MSELoss(pred_tw[obj_mask == 1], gt_tw[obj_mask == 1])
       loss['h'] = MSELoss(pred_th[obj_mask == 1], gt_th[obj_mask == 1])
+      # loss['cls'] = BCELoss(pred_cls[obj_mask == 1], cls_mask[obj_mask == 1])
+      loss['cls'] = CELoss(pred_cls[obj_mask == 1].view(-1, self.num_classes), cls_mask[obj_mask == 1].view(-1).long())
       loss['conf'] = BCELoss(pred_conf[obj_mask == 1], obj_mask[obj_mask == 1])
-      loss['cls'] = BCELoss(pred_cls[obj_mask == 1], cls_mask[obj_mask == 1])
       return loss
     else:
       grid_x = torch.arange(gs).repeat(gs, 1).view([1, 1, gs, gs]).float().cuda()
@@ -152,14 +157,15 @@ class NMSLayer(nn.Module):
   4. Suppress non-max detection
 
   @Args    
-    conf_thresh: (float) fore-ground confidence threshold, default 0.5
-    nms_thresh: (float) nms threshold, default 0.5
+    conf_thresh: (float) fore-ground confidence threshold
+    nms_thresh: (float) nms threshold
   """
 
-  def __init__(self, conf_thresh=0.5, nms_thresh=0.4):
+  def __init__(self, conf_thresh=0.5, nms_thresh=0.5, cls_thresh=0.8):
     super(NMSLayer, self).__init__()
     self.conf_thresh = conf_thresh
     self.nms_thresh = nms_thresh
+    self.cls_thresh = cls_thresh
 
   def forward(self, x):
     """
@@ -170,21 +176,21 @@ class NMSLayer(nn.Module):
       detections: (Tensor) detection result with size [num_bboxes, [image_batch_idx, 4 offsets, p_obj, max_conf, cls_idx]]
     """
     bs, num_bboxes, num_attrs = x.size()
-    conf_mask = (x[..., 4] > self.conf_thresh).float().unsqueeze(2)
-    x = x * conf_mask
     detections = torch.Tensor().cuda()
 
     for idx in range(bs):
       pred = x[idx]
-      pred[:, :4] = transform_coord(pred[:, :4], src='center', dst='corner')
 
       try:
-        non_zero_pred = pred[pred[:, 4].nonzero().squeeze(1)]
+        non_zero_pred = pred[pred[:, 4] > self.conf_thresh]
+        non_zero_pred[:, :4] = transform_coord(non_zero_pred[:, :4], src='center', dst='corner')
         max_score, max_idx = torch.max(non_zero_pred[:, 5:], 1)
         max_idx = max_idx.float().unsqueeze(1)
         max_score = max_score.float().unsqueeze(1)
         non_zero_pred = torch.cat((non_zero_pred[:, :5], max_score, max_idx), 1)
-        non_zero_pred = non_zero_pred[non_zero_pred[:, 5] > 0.3]  # FIXME: 0.3 as variable?
+        # from IPython import embed
+        # embed()
+        non_zero_pred = non_zero_pred[non_zero_pred[:, 5] > self.cls_thresh]
         classes = torch.unique(non_zero_pred[:, -1])
       except Exception:  # no object detected
         continue

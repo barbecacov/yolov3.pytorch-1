@@ -52,22 +52,23 @@ def train(epoch, trainloader, yolo, optimizer):
   tbar = tqdm(trainloader, ncols=80)
   tbar.set_description('training')
   for batch_idx, (names, inputs, targets) in enumerate(tbar):
+    global_step = batch_idx + epoch * len(trainloader)
+    
     # SGD burn in
     if (epoch == 0) & (batch_idx <= 1000):
-      lr = 1e-3 * (batch_idx / 1000) ** 4
+      lr = optimizer.param_groups[0]['lr'] * (batch_idx / 1000) ** 4
       for g in optimizer.param_groups:
         g['lr'] = lr
 
     optimizer.zero_grad()
-    global_step = batch_idx + epoch * len(trainloader)
     inputs = inputs.cuda()
     yolo(inputs, targets)
     log(writer, 'train_loss', yolo.loss, global_step)
     yolo.loss['total'].backward()
     optimizer.step()
 
-    # save something every 200 iterations
-    if (batch_idx + 1) % 200 == 0:
+    # save something every 1500 iterations
+    if (global_step + 1) % 1500 == 0:
       save_checkpoint(opj(config.CKPT_ROOT, args.dataset), epoch, batch_idx + 1, {
           'epoch': epoch,
           'iteration': batch_idx + 1,
@@ -108,6 +109,7 @@ if __name__ == '__main__':
   print("log_dir :", log_dir)
 
   # 2. Loading network
+  # TODO: resume tensorboard
   print(colored("\n==>", 'blue'), emojify("Loading network :hourglass:\n"))
   yolo = YOLOv3(cfg, args.reso).cuda()
   start_epoch, start_iteration = args.checkpoint.split('.')

@@ -1,18 +1,15 @@
 # yolov3.pytorch
 
-* 2018/10/07 Roll back and fix evaluation error. Loss function and mAP is still not working, while evaluation is working.
-* 2018/10/03 Loss will converge after 1 epoch but the model couldn't generate any bounding boxes. Details could be seen in issue [#1](https://github.com/ECer23/yolov3.pytorch/issues/1)
-* 2018/10/02 Could load pre trained darknet-53 to train from scartch
-* 2018/09/30 mAP evaluation implemented
+* 2018/10/08 **UPDATE** loss function seems to work, furthur test is needed. Details about training could be seen in issue [#1](https://github.com/ECer23/yolov3.pytorch/issues/1)
+* 2018/10/07 **WARNING** :warning: mAP computation seems not very accruate
+* 2018/10/07 Roll back and fix evaluation error. Loss function is still not working, while evaluation is working.
 
-This repository contains code for a object detector based on [YOLOv3: An Incremental Improvement](https://pjreddie.com/media/files/papers/YOLOv3.pdf), implemented in PyTorch. This repository is based on [ayooshkathuria/pytorch-yolo-v3](https://github.com/ayooshkathuria/pytorch-yolo-v3). I re-implemented it in PyTorch for better readability and re-useablity.
+This repository is used for object detection. The algorithm is based on [YOLOv3: An Incremental Improvement](https://pjreddie.com/media/files/papers/YOLOv3.pdf), implemented in PyTorch v0.4. **Thanks to  [ayooshkathuria/pytorch-yolo-v3](https://github.com/ayooshkathuria/pytorch-yolo-v3) and [ultralytics/yolov3](https://github.com/ultralytics/yolov3)**, based on their work, I re-implemented YOLO v3 in PyTorch for better readability and re-useablity.
 
-## Requirements
+## Environments
 
 * Python 3.6
-* PyTorch **0.4** (v0.4.1 or v0.3 is not supported)
-* Pillow
-* Numpy
+* PyTorch **0.4.0** (0.4.1 or 0.3 is not supported)
 * CUDA (**CPU is not supported**)
 
 ## Train
@@ -33,12 +30,12 @@ This repository contains code for a object detector based on [YOLOv3: An Increme
         'train_anno': '/media/data_2/COCO/2017/annotations/instances_train2017.json',
         'class_names': ['person', ...]
     }
-    ```
+    ````
 4. Train the model by running
     ```bash
     $ python train.py
     ```
-5. (optional) Visualize the training process by running `tensorboard --logdir ../log`
+5. (optional) Visualize the training process by running `tensorboard --logdir logs`
 
 ### Train on custom dataset
 
@@ -73,31 +70,35 @@ I've implemented `prepare_train_dataset` in `dataset.py` to prepare COCO dataloa
 1. Download official pretrained YOLO v3 weights [here](https://pjreddie.com/media/files/yolov3.weights)
 2. Transform it by running `python src/model.py` to transform official pre-trained YOLOv3 on COCO `checkpoints/darknet/yolov3-coco.weights` to pytorch readable checkpoint file `checkpoints/coco/-1.ckpt`
 3. Evaluate on validation sets you specify in `config.py` and compute the mAP by running
-
     ```bash
     $ python src/evaluate.py
     ```
-    
-    Validation results will be saved in `assets/results`
-4. (optional) You can also detect your own images by running
-    
-    ```bash
-    $ python demo.py
-    ```
+4. (optional) Save evaluation results by adding `--save`. Results will be saved in `assets/results`
 
-    Before that you should specify the images folder in `config.py`
+### How to detect COCO objects
+
+1. Download official pretrained YOLO v3 weights [here](https://pjreddie.com/media/files/yolov3.weights)
+2. Transform it by running `python src/model.py` to transform official pre-trained YOLOv3 on COCO `checkpoints/darknet/yolov3-coco.weights` to pytorch readable checkpoint file `checkpoints/coco/-1.ckpt`
+3. Specify the images folder in `config.py`
     ```python
     demo = {
       'images_dir': opj(ROOT, 'assets/imgs'),
       'result_dir': opj(ROOT, 'assets/dets')
     }
     ```
+4. Detect your own images by running
+    ```bash
+    $ python demo.py
+    ```
 
 ### Evaluation results
 
-| Dataset name | mAP |
-|---|---|
-| COCO 2017 (official pre-trained weights) | 63.358% |
+:warning: mAP computation seems not very accruate
+
+| Dataset name | Implementation | Resolution | Notes | mAP | FPS |
+|---|---|---|---|---|---|
+| COCO 2017 | mine | 416 | official pretrained YOLO v3 weights | 63.4 | |
+| COCO 2017 | official | 608 | paper results | 57.9 | |
 
 ### Evaluation demo
 
@@ -105,23 +106,24 @@ I've implemented `prepare_train_dataset` in `dataset.py` to prepare COCO dataloa
 
 ## TODO
 
-### Important
-
-- [x] ~~Evaluation on image~~
-- [ ] Training on user custom datasets
+- [ ] Evaluation
+  - [x] ~~Draw right bounding box~~
+  - [ ] mAP re-implementated
+  - [ ] FPS recording
+- [ ] Training
   - [x] ~~Loss function implementation~~
   - [x] ~~Visualize training process~~
   - [x] ~~Use pre trained Darknet model to train on custom datasets~~
   - [x] ~~Validation~~
-  - [ ] Kmeans clustering?
-  - [ ] Evaluate on test-dev
-  - [ ] Train COCO and custom datasets from scratch
+  - [ ] Train COCO from scratch
+  - [ ] Train custom datasets from scratch
+  - [ ] Learning rate scheduler
+  - [ ] Data augumentation
+- [ ] General
+  - [ ] Generalize annotation format to VOC for every dataset
+  - [ ] CPU support
+  - [x] ~~Memory use imporvements~~
 
-### Not important
-
-- [ ] Data augumentation ?
-- [ ] CPU support
-- [x] ~~Memory use imporvements~~
 
 ## Reference
 

@@ -11,7 +11,7 @@ warnings.filterwarnings("ignore")
 
 import config
 from model import YOLOv3
-from dataset import prepare_val_dataset
+from dataset import prepare_val_dataset, prepare_train_dataset
 from utils import draw_detection, load_checkpoint, mAP
 
 
@@ -48,7 +48,7 @@ def val(valloader, yolo, save_img=True):
     mAPs += mAP_batch
     tbar.set_description("mAP=%.2f" % (np.mean(mAPs) * 100))
 
-    if save_img == True:
+    if save_img == True and batch_idx % 4 == 0:
       img_path = opj(config.datasets[args.dataset]['val_imgs'], names[0])
       img_name = img_path.split('/')[-1]
 
@@ -89,6 +89,8 @@ if __name__ == '__main__':
   print("Model starts training from epoch %d iteration %d" % (start_epoch, start_iteration))
 
   print(emojify("\n==> Evaluating ...\n"))
+  if args.save == True:
+    os.system('rm ' + opj(config.evaluate['result_dir'], '*.jpg'))
   yolo.eval()
   with torch.no_grad():
     mAPs = val(dataloader, yolo, args.save)

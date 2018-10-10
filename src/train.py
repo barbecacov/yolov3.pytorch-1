@@ -56,19 +56,20 @@ def train(epoch, trainloader, yolo, optimizer):
     
     # learning rate warm up
     if (epoch == 0) & (batch_idx <= 1000):
-      lr = optimizer.param_groups[0]['lr'] * (batch_idx / 1000) ** 4
+      lr = args.lr * (batch_idx / 1000) ** 4
       for g in optimizer.param_groups:
         g['lr'] = lr
 
     optimizer.zero_grad()
     inputs = inputs.cuda()
     yolo(inputs, targets)
-    log(writer, 'train_loss', yolo.loss, global_step)
+    log(writer, 'training loss', yolo.loss, global_step)
+    log(writer, 'hyper parameters', {'learning_rate': optimizer.param_groups[0]['lr']}, global_step)
     yolo.loss['total'].backward()
     optimizer.step()
 
-    # save something every 1000 iterations
-    if (global_step + 1) % 1000 == 0:
+    # save something every 500 iterations
+    if (global_step + 1) % 500 == 0:
       save_checkpoint(opj(config.CKPT_ROOT, args.dataset), epoch, batch_idx + 1, {
           'epoch': epoch,
           'iteration': batch_idx + 1,
@@ -107,5 +108,5 @@ if __name__ == '__main__':
   optimizer = optim.SGD(filter(lambda p: p.requires_grad, yolo.parameters()),
                         lr=args.lr, momentum=0.9, weight_decay=5e-4, nesterov=True)
   for epoch in range(start_epoch, start_epoch+20):
-    print("[EPOCH] %d, learning rate = %.5f" % (epoch, optimizer.param_groups[0]['lr']))
+    print("[EPOCH] %d" % epoch)
     train(epoch, train_dataloader, yolo, optimizer)

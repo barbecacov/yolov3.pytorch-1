@@ -249,6 +249,8 @@ def log(writer, name, info, step):
       writer.add_scalar(tag, value, step)
   elif isinstance(info, float):
     writer.add_scalar(name, info, step)
+  else:
+    raise TypeError("Logging info type", type(info), "is not supported for", name)
 
 
 def mAP(preds, gts, reso):

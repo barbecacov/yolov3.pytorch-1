@@ -179,7 +179,7 @@ class YOLOv3(nn.Module):
       detections = self.nms(detections)
       return detections
 
-  def load_weights(self, path, cut=None):
+  def load_weights(self, path, cutoff=None):
     """Load darknet weights from disk.
     YOLOv3 is fully convolutional, so only conv layers' weights will be loaded
     Darknet's weights data are organized as
@@ -192,7 +192,7 @@ class YOLOv3(nn.Module):
       cut: (optinoal, int) cutting layer
     """
     fp = open(path, 'rb')
-    header = np.fromfile(fp, dtype=np.int32, count=5)
+    header = np.fromfile(fp, dtype=np.int32, count=4)
     weights = np.fromfile(fp, dtype=np.float32)
     fp.close()
 
@@ -202,7 +202,7 @@ class YOLOv3(nn.Module):
     for i, module in enumerate(self.module_list):
       block = self.blocks[i]
 
-      if cut is not None and i == cut:
+      if cutoff is not None and i == cutoff:
         print("Stop before", block['type'], "block (No.%d)" % (i+1))
         break
 
@@ -246,30 +246,3 @@ class YOLOv3(nn.Module):
         conv_weights = conv_weights.view_as(conv.weight.data)
         conv.weight.data.copy_(conv_weights)
         ptr = ptr + num_weights
-
-
-if __name__ == '__main__':
-  import os
-  import config
-  from utils import save_checkpoint
-  opj = os.path.join
-
-  model = YOLOv3(config.network['coco']['cfg'], 416).cuda()
-
-  # transfer pretrained darknets
-  model.load_weights('../checkpoints/darknet/darknet53.conv.74.weights', cut=74)
-  save_checkpoint(opj(config.CKPT_ROOT), 0, 0, {
-    'epoch': 0,
-    'iteration': 0,
-    'state_dict': model.state_dict(),
-  })
-
-  model = YOLOv3(config.network['coco']['cfg'], 416).cuda()
-
-  # transfer pretrained yolo
-  model.load_weights('../checkpoints/darknet/yolov3-coco.weights')
-  save_checkpoint(opj(config.CKPT_ROOT, 'coco'), -1, -1, {
-    'epoch': -1,
-    'iteration': -1,
-    'state_dict': model.state_dict(),
-  })

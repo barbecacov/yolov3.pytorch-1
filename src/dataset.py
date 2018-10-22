@@ -138,7 +138,7 @@ def prepare_train_dataset(name, reso, batch_size=32):
         dataloder = torch.utils.data.DataLoader(img_datasets, batch_size=batch_size, num_workers=4, shuffle=True, collate_fn=CocoDataset.collate_fn)
     elif name == 'voc':
         img_datasets = VocDataset(train_list=path['train_imgs'], transform=transform)
-        dataloder = torch.utils.data.DataLoader(img_datasets, batch_size=batch_size, shuffle=True, collate_fn=VocDataset.collate_fn)
+        dataloder = torch.utils.data.DataLoader(img_datasets, batch_size=batch_size, num_workers=4, shuffle=True, collate_fn=VocDataset.collate_fn)
 
     return img_datasets, dataloder
 
@@ -160,11 +160,15 @@ def prepare_val_dataset(name, reso, batch_size=32):
         transforms.ToTensor()
     ])
 
-    if name == 'coco':
-        path = config.datasets[name]
-        img_datasets = CocoDataset(root=path['val_imgs'], annFile=path['val_anno'], transform=transform)
+    path = config.datasets[name]
 
-    dataloder = torch.utils.data.DataLoader(img_datasets, batch_size=batch_size, num_workers=4, collate_fn=CocoDataset.collate_fn, shuffle=True)
+    if name == 'coco':
+        img_datasets = CocoDataset(root=path['val_imgs'], annFile=path['val_anno'], transform=transform)
+        dataloder = torch.utils.data.DataLoader(img_datasets, batch_size=batch_size, num_workers=4, collate_fn=CocoDataset.collate_fn, shuffle=True)
+    elif name == 'voc':
+        img_datasets = VocDataset(train_list=path['train_imgs'], transform=transform)
+        dataloder = torch.utils.data.DataLoader(img_datasets, batch_size=batch_size, num_workers=4, shuffle=True, collate_fn=VocDataset.collate_fn)
+
 
     return img_datasets, dataloder
 

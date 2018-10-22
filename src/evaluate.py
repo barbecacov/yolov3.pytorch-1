@@ -18,8 +18,8 @@ from utils import draw_detection, load_checkpoint, mAP
 def parse_arg():
     parser = argparse.ArgumentParser(description='YOLO v3 training')
     parser.add_argument('--reso', default=416, type=int, help="Input image resolution")
-    parser.add_argument('--batch', default=32, type=int, help="Batch size")
-    parser.add_argument('--dataset', default='coco', choices=['tejani', 'coco'], type=str, help="Dataset name")
+    parser.add_argument('--batch', default=12, type=int, help="Batch size")
+    parser.add_argument('--dataset', default='voc', choices=['tejani', 'coco'], type=str, help="Dataset name")
     parser.add_argument('--checkpoint', default='-1.-1', type=str, help="Checkpoint name in format: `epoch.iteration`")
     parser.add_argument('--save', action='store_true', help="Save image during validation")
     parser.add_argument('--gpu', default='0', help="GPU ids")
@@ -40,7 +40,7 @@ def val(valloader, yolo, save_img=True):
       save_img: (bool) whether to save images during validation
     """
     mAPs = []
-    tbar = tqdm(valloader, ncols=80)
+    tbar = tqdm(valloader, ncols=80, ascii=True)
     for batch_idx, (names, inputs, targets) in enumerate(tbar):
         inputs = inputs.cuda()
         detections = yolo(inputs)

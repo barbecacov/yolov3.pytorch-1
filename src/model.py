@@ -12,9 +12,9 @@ from utils import parse_cfg
 class YOLOv3(nn.Module):
     """YOLO v3 model
 
-    @Args
-      cfgfile: (str) path to yolo v3 config file  
-      reso: (int) original image resolution  
+    Args
+    - cfgfile: (str) path to yolo v3 config file  
+    - reso: (int) original image resolution  
     """
 
     def __init__(self, cfgfile, reso):
@@ -27,11 +27,11 @@ class YOLOv3(nn.Module):
     def build_model(self, blocks):
         """Build YOLOv3 model from building blocks
 
-        @Args
-          blocks: (list) list of building blocks description
+        Args
+        - blocks: (list) list of building blocks description
 
-        @Returns
-          module_list: (nn.ModuleList) module list of neural network
+        Returns
+        - module_list: (nn.ModuleList) module list of neural network
         """
         module_list = nn.ModuleList()
         in_channels = 3  # start from RGB 3 channels
@@ -123,18 +123,19 @@ class YOLOv3(nn.Module):
     def forward(self, x, y_true=None):
         """Forwarad pass of YOLO v3
 
-        @Args
-          x: (Tensor) input Tensor, with size[batch_size, C, H, W]
+        Args
+        - x: (Tensor) input Tensor, with size[batch_size, C, H, W]
 
-        @Variables
-          self.cache: (dict) cache of raw detection result, each with size [batch_size, num_bboxes, [xc, yc, w, h, p_ob]+num_classes]
+        Variables
+        - self.cache: (dict) cache of raw detection result, each with size [batch_size, num_bboxes, [xc, yc, w, h, p_ob]+num_classes]
 
-        @Returns
-          detections: (Tensor) detection result with size [num_bboxes, [batch idx, x1, y1, x2, y2, p0, conf, label]]
+        Returns
+        - loss:
+        - detections: (Tensor) detection result with size [num_bboxes, [batch idx, x1, y1, x2, y2, p0, conf, label]]
         """
         detections = torch.Tensor().cuda()  # detection results
         outputs = dict()  # output cache for route layer
-        self.loss = defaultdict(float)
+        loss = dict()
 
         for i, block in enumerate(self.blocks):
             # Convolutional, upsample, maxpooling layer
@@ -167,15 +168,17 @@ class YOLOv3(nn.Module):
                 if self.training == True:
                     loss_part = self.module_list[i][0](x, y_true)
                     for key, value in loss_part.items():
-                        self.loss[key] += value
-                        self.loss['total'] += value
+                        loss[key] = loss[key] + value if key in loss.keys() else value
+                        loss['total'] = loss['total'] + value if 'total' in loss.keys() else value
                 else:
                     x = self.module_list[i][0](x)
                     detections = x if len(detections.size()) == 1 else torch.cat((detections, x), 1)
                 outputs[i] = outputs[i-1]  # skip
 
         # return detection result only when evaluation
-        if self.training == False:
+        if self.training == True:
+            return loss
+        else:
             detections = self.nms(detections)
             return detections
 
@@ -187,9 +190,9 @@ class YOLOv3(nn.Module):
           1. (optional) conv_bias
           2. conv_weights
 
-        @Args
-          path: (str) path to .weights file
-          cut: (optinoal, int) cutting layer
+        Args
+        - path: (str) path to .weights file
+        - cut: (optinoal, int) cutting layer
         """
         fp = open(path, 'rb')
         header = np.fromfile(fp, dtype=np.int32, count=4)

@@ -5,6 +5,7 @@ import argparse
 import warnings
 import numpy as np
 from PIL import Image
+import torch.nn as nn
 import torch.optim as optim
 from termcolor import colored
 from pyemojify import emojify
@@ -28,7 +29,7 @@ def parse_arg():
     parser.add_argument('--batch', default=16, type=int, help="Batch size")
     parser.add_argument('--dataset', default='voc', choices=['voc', 'coco'], type=str, help="Dataset name")
     parser.add_argument('--checkpoint', default='0.0', type=str, help="Checkpoint name in format: `epoch.iteration`")
-    parser.add_argument('--gpu', default='0', type=str, help="GPU id")
+    parser.add_argument('--gpu', default='0,1,2,3', type=str, help="GPU id")
     return parser.parse_args()
 
 
@@ -49,7 +50,7 @@ def train(epoch, trainloader, yolo, optimizer):
       optimizer: (optim) optimizer
     """
     yolo.train()
-    tbar = tqdm(trainloader, ncols=80)
+    tbar = tqdm(trainloader, ncols=80, ascii=True)
     tbar.set_description('training')
     for batch_idx, (paths, inputs, targets) in enumerate(tbar):
         global_step = batch_idx + epoch * len(trainloader)
@@ -62,10 +63,10 @@ def train(epoch, trainloader, yolo, optimizer):
 
         optimizer.zero_grad()
         inputs = inputs.cuda()
-        yolo(inputs, targets)
-        log(writer, 'training loss', yolo.loss, global_step)
+        loss = yolo(inputs, targets)
+        log(writer, 'training loss', loss, global_step)
         log(writer, 'hyper parameters', {'learning_rate': optimizer.param_groups[0]['lr']}, global_step)
-        yolo.loss['total'].backward()
+        loss['total'].backward()
         optimizer.step()
 
         # save something every 500 iterations
@@ -73,7 +74,7 @@ def train(epoch, trainloader, yolo, optimizer):
             save_checkpoint(opj(config.CKPT_ROOT, args.dataset), epoch, batch_idx + 1, {
                 'epoch': epoch,
                 'iteration': batch_idx + 1,
-                'state_dict': yolo.state_dict()
+                'state_dict': yolo.module.state_dict()
             })
 
 
@@ -88,7 +89,7 @@ if __name__ == '__main__':
     # 2. Loading network
     # TODO: resume tensorboard
     print(colored("\n==>", 'blue'), emojify("Loading network :hourglass:\n"))
-    yolo = YOLOv3(cfg, args.reso).cuda()
+    yolo = YOLOv3(cfg, args.reso)
     start_epoch, start_iteration = args.checkpoint.split('.')
     start_epoch, start_iteration, state_dict = load_checkpoint(
         opj(config.CKPT_ROOT, args.dataset),
@@ -96,6 +97,8 @@ if __name__ == '__main__':
         int(start_iteration)
     )
     yolo.load_state_dict(state_dict)
+    yolo = nn.DataParallel(yolo)
+    yolo = yolo.cuda()
     print("Model starts training from epoch %d iteration %d" % (start_epoch, start_iteration))
 
     # 3. Preparing data
@@ -110,3 +113,8 @@ if __name__ == '__main__':
     for epoch in range(start_epoch, start_epoch+20):
         print("[EPOCH] %d" % epoch)
         train(epoch, train_dataloader, yolo, optimizer)
+        save_checkpoint(opj(config.CKPT_ROOT, args.dataset), epoch + 1, 0, {
+            'epoch': epoch + 1,
+            'iteration': 0,
+            'state_dict': yolo.module.state_dict()
+        })

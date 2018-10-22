@@ -199,15 +199,15 @@ def load_checkpoint(checkpoint_dir, epoch, iteration):
     """
     path = opj(checkpoint_dir, str(epoch) + '.' + str(iteration) + '.ckpt')
     if not os.path.isfile(path):
-        raise Exception(emojify("Checkpoint in epoch %d doesn't exist :poop:" % epoch))
+        raise Exception(emojify("Checkpoint in epoch %d doesn't exist :shit:" % epoch))
 
     checkpoint = torch.load(path)
     start_epoch = checkpoint['epoch']
     state_dict = checkpoint['state_dict']
     start_iteration = checkpoint['iteration']
 
-    assert epoch == start_epoch, emojify("`epoch` != checkpoint's `start_epoch` :poop:")
-    assert iteration == start_iteration, emojify("`iteration` != checkpoint's `start_iteration` :poop:")
+    assert epoch == start_epoch, emojify("`epoch` != checkpoint's `start_epoch` :shit:")
+    assert iteration == start_iteration, emojify("`iteration` != checkpoint's `start_iteration` :shit:")
     return start_epoch, start_iteration, state_dict
 
 

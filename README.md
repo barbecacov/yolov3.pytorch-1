@@ -8,7 +8,7 @@ Full version of update logs could be seen in issue [#2](https://github.com/ECer2
 
 * 2018/10/10 **UPDATE** Support training on VOC dataset, but couldn't ensure get a good result.
 * 2018/10/08 Loss function seems to work, furthur test is needed. Details about training could be seen in issue [#1](https://github.com/ECer23/yolov3.pytorch/issues/1)
-* 2018/10/07 **WARNING** :warning: mAP computation seems not very accruate
+* 2018/10/07 **WARNING** mAP computation seems not very accruate
 
 ## Environments
 

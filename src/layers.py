@@ -161,7 +161,7 @@ class NMSLayer(nn.Module):
       nms_thresh: (float) nms threshold
     """
 
-    def __init__(self, conf_thresh=0.5, nms_thresh=0.5, cls_thresh=0.8):
+    def __init__(self, conf_thresh=0.5, nms_thresh=0.5, cls_thresh=0.5):
         super(NMSLayer, self).__init__()
         self.conf_thresh = conf_thresh
         self.nms_thresh = nms_thresh
@@ -188,9 +188,6 @@ class NMSLayer(nn.Module):
                 max_idx = max_idx.float().unsqueeze(1)
                 max_score = max_score.float().unsqueeze(1)
                 non_zero_pred = torch.cat((non_zero_pred[:, :5], max_score, max_idx), 1)
-                # from IPython import embed
-                # embed()
-                non_zero_pred = non_zero_pred[non_zero_pred[:, 5] > self.cls_thresh]
                 classes = torch.unique(non_zero_pred[:, -1])
             except Exception:  # no object detected
                 continue

@@ -49,7 +49,7 @@ if __name__ == '__main__':
 
     print(colored("\n==>", 'blue'), emojify("Evaluation ...\n"))
     yolo.eval()
-    for batch_idx, (img_path, inputs) in enumerate(tqdm(dataloader, ncols=80)):
+    for batch_idx, (img_path, inputs) in enumerate(tqdm(dataloader, ncols=80, ascii=True)):
         inputs = inputs.cuda()
         detections = yolo(inputs)
 

@@ -8,17 +8,17 @@ CKPT_ROOT = opj(ROOT, 'checkpoints')
 
 
 def parse_names(path):
-  """Parse names .json"""
-  with open(path) as json_data:
-    d = json.load(json_data)
-    return d
+    """Parse names .json"""
+    with open(path) as json_data:
+        d = json.load(json_data)
+        return d
 
 
 def create_category_mapping(d):
-  mapping = dict()
-  for idx, id in enumerate(d):
-    mapping[id] = idx
-  return mapping
+    mapping = dict()
+    for idx, id in enumerate(d):
+        mapping[id] = idx
+    return mapping
 
 
 # datasets config

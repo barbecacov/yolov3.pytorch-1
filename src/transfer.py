@@ -7,23 +7,23 @@ opj = os.path.join
 
 
 def parse_arg():
-  parser = argparse.ArgumentParser("Transfer .weights file to PyTorch readable checkpoint")
-  parser.add_argument('--dataset', default='voc', choices=['voc', 'coco'], type=str, help="Dataset name")
-  parser.add_argument('--weights', default='darknet53.conv.74.weights', type=str, help=".weights file name (stored in checkpoint/darknet)")
-  return parser.parse_args()
+    parser = argparse.ArgumentParser("Transfer .weights file to PyTorch readable checkpoint")
+    parser.add_argument('--dataset', default='voc', choices=['voc', 'coco'], type=str, help="Dataset name")
+    parser.add_argument('--weights', default='darknet53.conv.74.weights', type=str, help=".weights file name (stored in checkpoint/darknet)")
+    return parser.parse_args()
 
 
 if __name__ == '__main__':
-  args = parse_arg()
-  model = YOLOv3(config.network[args.dataset]['cfg'], 416).cuda()
+    args = parse_arg()
+    model = YOLOv3(config.network[args.dataset]['cfg'], 416).cuda()
 
-  # weights with cutoff
-  if len(args.weights.split('.')) > 2:
-    cutoff = int(args.weights.split('.')[-2])
+    # weights with cutoff
+    if len(args.weights.split('.')) > 2:
+        cutoff = int(args.weights.split('.')[-2])
 
-  model.load_weights(opj(config.CKPT_ROOT, 'darknet', args.weights), cutoff=cutoff)
-  save_checkpoint(opj(config.CKPT_ROOT, args.dataset), 0, 0, {
-      'epoch': 0,
-      'iteration': 0,
-      'state_dict': model.state_dict(),
-  })
+    model.load_weights(opj(config.CKPT_ROOT, 'darknet', args.weights), cutoff=cutoff)
+    save_checkpoint(opj(config.CKPT_ROOT, args.dataset), 0, 0, {
+        'epoch': 0,
+        'iteration': 0,
+        'state_dict': model.state_dict(),
+    })

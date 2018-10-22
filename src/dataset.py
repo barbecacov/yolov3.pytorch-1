@@ -17,7 +17,7 @@ import config
 class CocoDataset(CocoDetection):
     def __getitem__(self, index):
         """
-        @Returns
+        Returns
           path: (str) image file name
           img: (Tensor) with size [C, H, W]
           TODO: memory improvements ?
@@ -47,7 +47,7 @@ class CocoDataset(CocoDetection):
     def collate_fn(batch):
         """Collate function for Coco DataLoader
 
-        @Returns
+        Returns
           names: (tuple) each is a str of image filename
           images: (Tensor) with size [bs, C, H, W]
           annos: (tuple) each is a Tensor of annotations
@@ -60,7 +60,7 @@ class CocoDataset(CocoDetection):
 class VocDataset(torch.utils.data.dataset.Dataset):
     """Image datasets for PASCAL VOC
 
-    @Args
+    Args
       train_list: (str) full path to train list file
     """
 
@@ -83,10 +83,10 @@ class VocDataset(torch.utils.data.dataset.Dataset):
     def parse_label(self, label_path):
         """Parsing label
 
-        @Args
+        Args
           label_path: (str) path to label file
 
-        @Returns
+        Returns
           img_anno: (Tensor) with size [#bbox, 5]
             offsets are scaled to (0,1) and in format [xc, yc, w, h, label]
         """
@@ -104,7 +104,7 @@ class VocDataset(torch.utils.data.dataset.Dataset):
     def collate_fn(batch):
         """Collate function for Voc DataLoader
 
-        @Returns
+        Returns
           paths: (tuple) each is a str of filepath to image
           images: (Tensor) with size [bs, C, H, W]
           annos: (tuple) each is a Tensor of annotations
@@ -117,12 +117,12 @@ class VocDataset(torch.utils.data.dataset.Dataset):
 def prepare_train_dataset(name, reso, batch_size=32):
     """Prepare dataset for training
 
-    @Args  
+    Args  
       name: (str) dataset name
       reso: (int) training image resolution
       batch_size: (int) default 32
 
-    @Returns
+    Returns
       img_datasets: (CocoDataset) image datasets
       trainloader: (Dataloader) dataloader for training
     """
@@ -146,12 +146,12 @@ def prepare_train_dataset(name, reso, batch_size=32):
 def prepare_val_dataset(name, reso, batch_size=32):
     """Prepare dataset for validation
 
-    @Args  
+    Args  
       name: (str) dataset name [tejani, hinter]
       reso: (int) validation image resolution
       batch_size: (int) default 32
 
-    @Returns
+    Returns
       img_datasets: (CocoDataset)
       dataloader: (Dataloader)
     """
@@ -178,7 +178,7 @@ class DemoDataset(torch.utils.data.dataset.Dataset):
 
     def __init__(self, imgs_dir, transform):
         """
-        @Args
+        Args
           imgs_dir: (str) test images directory
           transform: (torchvision.transforms)
         """
@@ -200,12 +200,12 @@ class DemoDataset(torch.utils.data.dataset.Dataset):
 def prepare_demo_dataset(path, reso, batch_size=1):
     """Prepare dataset for demo
 
-    @Args
+    Args
       path: (str) path to images
       reso: (int) evaluation image resolution
       batch_size: (int) default 1
 
-    @Returns
+    Returns
       img_datasets: (torchvision.datasets) demo image datasets
       dataloader: (DataLoader)
     """

@@ -34,7 +34,7 @@ os.environ['CUDA_VISIBLE_DEVICES'] = args.gpu
 def val(valloader, yolo, save_img=True):
     """Validation wrapper
 
-    @Args
+    Args
       valloader: (Dataloader) validation data loader 
       yolo: (nn.Module) YOLOv3 model
       save_img: (bool) whether to save images during validation

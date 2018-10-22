@@ -13,10 +13,10 @@ import config
 def parse_cfg(cfgfile):
     """Parse a configuration file
 
-    @Args
+    Args
       cfgfile: (str) path to config file
 
-    @Returns
+    Returns
       blocks: (list) list of blocks, with each block describes a block in the NN to be built
     """
     file = open(cfgfile, 'r')
@@ -52,10 +52,10 @@ def transform_coord(bbox, src='center', dst='corner'):
       |____w____|                   |_________* (x2,y2)
          center                         corner
 
-    @Args
+    Args
       bbox: (Tensor) bbox with size [..., 4]
 
-    @Returns
+    Returns
       bbox_transformed: (Tensor) bbox with size [..., 4]
     """
     flag = False
@@ -86,7 +86,7 @@ def transform_coord(bbox, src='center', dst='corner'):
 def IoU(box1, box2, format='corner'):
     """Compute IoU between box1 and box2
 
-    @Args
+    Args
       box: (torch.cuda.Tensor) bboxes with size [# bboxes, 4]  # TODO: cpu
       format: (str) bbox format
         'corner' => [x1, y1, x2, y2]
@@ -114,16 +114,16 @@ def IoU(box1, box2, format='corner'):
 def draw_detection(img_path, detection, reso, type):
     """Draw detection result
 
-    @Args
-      img_path: (str) path to image
-      detection: (np.array) detection result
+    Args
+    - img_path: (str) path to image
+    - detection: (np.array) detection result
         1. (type == 'pred') with size [#bbox, [batch_idx, top-left x, top-left y, bottom-right x, bottom-right y, objectness, conf, class idx]]
         2. (type == 'gt') with size [#box, [top-left x, top-left y, bottom-right x, bottom-right y]]
-      reso: (int) image resolution
-      type: (str) prediction or ground truth
+    - reso: (int) image resolution
+    - type: (str) prediction or ground truth
 
-    @Returns
-      img: (Pillow.Image) detection result
+    Returns
+    - img: (Pillow.Image) detection result
     """
     class_names = config.datasets['coco']['class_names']
 
@@ -165,8 +165,8 @@ def draw_detection(img_path, detection, reso, type):
 def get_current_time():
     """Get current datetime
 
-    @Returns
-      time: (str) time in format "dd-hh-mm"
+    Returns
+    - time: (str) time in format "dd-hh-mm"
     """
     time = str(datetime.datetime.now())
     time = time.split('-')[-1].split('.')[0]
@@ -187,15 +187,15 @@ def get_current_time():
 def load_checkpoint(checkpoint_dir, epoch, iteration):
     """Load checkpoint from path
 
-    @Args
-      checkpoint_dir: (str) absolute path to checkpoint folder
-      epoch: (int) epoch of checkpoint
-      iteration: (int) iteration of checkpoint in one epoch
+    Args
+    - checkpoint_dir: (str) absolute path to checkpoint folder
+    - epoch: (int) epoch of checkpoint
+    - iteration: (int) iteration of checkpoint in one epoch
 
-    @Returns
-      start_epoch: (int)
-      start_iteration: (int)
-      state_dict: (dict) state of model
+    Returns
+    - start_epoch: (int)
+    - start_iteration: (int)
+    - state_dict: (dict) state of model
     """
     path = opj(checkpoint_dir, str(epoch) + '.' + str(iteration) + '.ckpt')
     if not os.path.isfile(path):
@@ -214,11 +214,11 @@ def load_checkpoint(checkpoint_dir, epoch, iteration):
 def save_checkpoint(checkpoint_dir, epoch, iteration, save_dict):
     """Save checkpoint to path
 
-    @Args
-      path: (str) absolute path to checkpoint folder
-      epoch: (int) epoch of checkpoint file
-      iteration: (int) iteration of checkpoint in one epoch
-      save_dict: (dict) saving parameters dict
+    Args
+    - path: (str) absolute path to checkpoint folder
+    - epoch: (int) epoch of checkpoint file
+    - iteration: (int) iteration of checkpoint in one epoch
+    - save_dict: (dict) saving parameters dict
     """
     os.makedirs(checkpoint_dir, exist_ok=True)
     path = opj(checkpoint_dir, str(epoch) + '.' + str(iteration) + '.ckpt')
@@ -237,11 +237,11 @@ def save_checkpoint(checkpoint_dir, epoch, iteration, save_dict):
 def log(writer, name, info, step):
     """Wrapper for tensorboard writer
 
-    @Args
-      writer: (SummaryWriter)
-      name: (string) category name
-      info: (dict or float) value
-      step: (int) global steps
+    Args
+    - writer: (SummaryWriter)
+    - name: (string) category name
+    - info: (dict or float) value
+    - step: (int) global steps
     """
     if isinstance(info, dict):
         for key, value in info.items():
@@ -256,17 +256,17 @@ def log(writer, name, info, step):
 def mAP(preds, gts, reso):
     """Compute mAP between prediction and ground truth
 
-    @Args
-      preds: (Tensor) with size [num_bboxes, 8=[batch idx, x1, y1, x2, y2, p0, conf, label]]
-      gts: (Tensor) with size [bs, num_bboxes, 5=[xc, yc, w, h, label]]
-      reso: (int) inputs resolution
+    Args
+    - preds: (Tensor) with size [num_bboxes, 8=[batch idx, x1, y1, x2, y2, p0, conf, label]]
+    - gts: (Tensor) with size [bs, num_bboxes, 5=[xc, yc, w, h, label]]
+    - reso: (int) inputs resolution
 
-    @Variables
-      bs: (int) batch size
-      nB: (int) number of boxes
+    Variables
+    - bs: (int) batch size
+    - nB: (int) number of boxes
 
-    @Returns
-      mAPs: (list)
+    Returns
+    - mAPs: (list)
     """
     mAPs = []
 

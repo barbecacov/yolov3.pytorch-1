@@ -126,9 +126,6 @@ class YOLOv3(nn.Module):
         Args
         - x: (Tensor) input Tensor, with size[batch_size, C, H, W]
 
-        Variables
-        - self.cache: (dict) cache of raw detection result, each with size [batch_size, num_bboxes, [xc, yc, w, h, p_ob]+num_classes]
-
         Returns
         - loss:
         - detections: (Tensor) detection result with size [num_bboxes, [batch idx, x1, y1, x2, y2, p0, conf, label]]

@@ -77,7 +77,7 @@ training:   0%|                              | 4/7393 [00:06<3:21:43,  1.64s/it]
 
       def __getitem__(self, index):
         """
-        @Returns
+        Returns
           img_path: (str) full path to image
           img_tensor: (Tensor)
           img_anno: (Tensor) with size [#bbox, 5]
@@ -93,7 +93,7 @@ training:   0%|                              | 4/7393 [00:06<3:21:43,  1.64s/it]
       def collate_fn(batch):
         """Collate function for DataLoader
 
-        @Returns
+        Returns
           paths: (tuple) each is a str of image filename
           images: (Tensor) with size [bs, C, H, W]
           annos: (tuple) each is a Tensor of annotations

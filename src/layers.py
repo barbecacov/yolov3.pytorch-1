@@ -32,7 +32,7 @@ class EmptyLayer(nn.Module):
 class DetectionLayer(nn.Module):
     """Detection layer
 
-    @Args
+    Args
       anchors: (list) list of anchor box sizes tuple
       num_classes: (int) # classes
       reso: (int) original image resolution
@@ -58,11 +58,11 @@ class DetectionLayer(nn.Module):
           bh = ph * exp(th)
         4. Activation
 
-        @Args
+        Args
           x: (Tensor) feature map with size [bs, (5+nC)*nA, gs, gs]
             5 => [4 offsets (xc, yc, w, h), objectness]
 
-        @Returns
+        Returns
           detections: (Tensor) feature map with size [bs, nA, gs, gs, 5+nC]
         """
         bs, _, gs, _ = x.size()
@@ -156,12 +156,12 @@ class NMSLayer(nn.Module):
     3. Sort by confidence
     4. Suppress non-max detection
 
-    @Args    
+    Args    
       conf_thresh: (float) fore-ground confidence threshold
       nms_thresh: (float) nms threshold
     """
 
-    def __init__(self, conf_thresh=0.5, nms_thresh=0.5, cls_thresh=0.5):
+    def __init__(self, conf_thresh=0.5, nms_thresh=0.5, cls_thresh=0.1):
         super(NMSLayer, self).__init__()
         self.conf_thresh = conf_thresh
         self.nms_thresh = nms_thresh
@@ -169,10 +169,10 @@ class NMSLayer(nn.Module):
 
     def forward(self, x):
         """
-        @Args
+        Args
           x: (Tensor) detection feature map, with size [bs, num_bboxes, [x,y,w,h,p_obj]+num_classes]
 
-        @Returns
+        Returns
           detections: (Tensor) detection result with size [num_bboxes, [image_batch_idx, 4 offsets, p_obj, max_conf, cls_idx]]
         """
         bs, num_bboxes, num_attrs = x.size()
@@ -188,6 +188,7 @@ class NMSLayer(nn.Module):
                 max_idx = max_idx.float().unsqueeze(1)
                 max_score = max_score.float().unsqueeze(1)
                 non_zero_pred = torch.cat((non_zero_pred[:, :5], max_score, max_idx), 1)
+                non_zero_pred = non_zero_pred[non_zero_pred[:, 5] > self.cls_thresh]
                 classes = torch.unique(non_zero_pred[:, -1])
             except Exception:  # no object detected
                 continue

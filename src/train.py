@@ -43,7 +43,7 @@ os.environ['CUDA_VISIBLE_DEVICES'] = args.gpu
 def train(epoch, trainloader, yolo, optimizer):
     """Training wrapper
 
-    @Args
+    Args
       epoch: (int) training epoch
       trainloader: (Dataloader) train data loader 
       yolo: (nn.Module) YOLOv3 model

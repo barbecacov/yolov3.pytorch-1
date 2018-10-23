@@ -69,13 +69,38 @@ def train(epoch, trainloader, yolo, optimizer):
         loss['total'].backward()
         optimizer.step()
 
-        # save something every 500 iterations
-        if (global_step + 1) % 500 == 0:
-            save_checkpoint(opj(config.CKPT_ROOT, args.dataset), epoch, batch_idx + 1, {
-                'epoch': epoch,
-                'iteration': batch_idx + 1,
-                'state_dict': yolo.module.state_dict()
-            })
+
+def val(epoch, valloader, yolo):
+    """Validation wrapper
+
+    Args
+    - epoch: (int)
+    - valloader: (Dataloader) validation data loader 
+    - yolo: (nn.Module) YOLOv3 model
+    """
+    mAPs = []
+    tbar = tqdm(valloader, ncols=80, ascii=True)
+    for batch_idx, (names, inputs, targets) in enumerate(tbar):
+        inputs = inputs.cuda()
+        detections = yolo(inputs)
+        mAP_batch = mAP(detections, targets, args.reso)
+        mAPs += mAP_batch
+        tbar.set_description("mAP=%.2f" % (np.mean(mAPs) * 100))
+
+        img_path = opj(config.datasets[args.dataset]['val_imgs'], names[0])
+        img_name = img_path.split('/')[-1]
+
+        try:
+            detection = detections[detections[:, 0] == 0]
+        except Exception:
+            img = Image.open(img_path)
+        else:
+            img = draw_detection(img_path, detection, yolo.reso, dataset=args.dataset, type='pred')
+
+        os.makedirs(opj(config.evaluate['result_dir'], epoch), exist_ok=True)
+        img.save(opj(config.evaluate['result_dir'], epoch, img_name))
+
+    return np.mean(mAPs) * 100
 
 
 if __name__ == '__main__':
@@ -104,19 +129,24 @@ if __name__ == '__main__':
     # 3. Preparing data
     print(colored("\n==>", 'blue'), emojify("Preparing data :coffee:\n"))
     train_img_datasets, train_dataloader = prepare_train_dataset(args.dataset, args.reso, args.batch)
+    val_img_datasets, val_dataloder = prepare_val_dataset(args.dataset, args.reso, args.batch)
     print("Number of training images:", len(train_img_datasets))
 
     # 4. Training
+    best_mAP = 0
     print(colored("\n==>", 'blue'), emojify("Training :snowflake:\n"))
     optimizer = optim.SGD(filter(lambda p: p.requires_grad, yolo.parameters()),
                           lr=args.lr, momentum=0.9, weight_decay=5e-4, nesterov=True)
     scheduler = lr_scheduler.StepLR(optimizer, step_size=25, gamma=0.1)
     for epoch in range(start_epoch, start_epoch+100):
-        print("[EPOCH] %d" % epoch)
+        print("[EPOCH] %d with preceding mAP %.2f%%" % (epoch, best_mAP))
         scheduler.step()
         train(epoch, train_dataloader, yolo, optimizer)
-        save_checkpoint(opj(config.CKPT_ROOT, args.dataset), epoch + 1, 0, {
-            'epoch': epoch + 1,
-            'iteration': 0,
-            'state_dict': yolo.module.state_dict()
-        })
+        mAP = val(epoch, val_dataloder, yolo)
+        if mAP > best_mAP:
+            best_mAP = mAP
+            save_checkpoint(opj(config.CKPT_ROOT, args.dataset), epoch + 1, 0, {
+                'epoch': epoch + 1,
+                'iteration': 0,
+                'state_dict': yolo.module.state_dict()
+            })

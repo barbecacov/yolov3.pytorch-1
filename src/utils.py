@@ -111,7 +111,7 @@ def IoU(box1, box2, format='corner'):
     return inter_area / (b1_area + b2_area - inter_area)
 
 
-def draw_detection(img_path, detection, reso, type):
+def draw_detection(img_path, detection, reso, dataset, type):
     """Draw detection result
 
     Args
@@ -120,12 +120,13 @@ def draw_detection(img_path, detection, reso, type):
         1. (type == 'pred') with size [#bbox, [batch_idx, top-left x, top-left y, bottom-right x, bottom-right y, objectness, cls_conf, class idx]]
         2. (type == 'gt') with size [#box, [top-left x, top-left y, bottom-right x, bottom-right y]]
     - reso: (int) image resolution
+    - dataset: (str) dataset name
     - type: (str) prediction or ground truth
 
     Returns
     - img: (Pillow.Image) detection result
     """
-    class_names = config.datasets['coco']['class_names']
+    class_names = config.datasets[dataset]['class_names']
 
     img = Image.open(img_path)
     w, h = img.size

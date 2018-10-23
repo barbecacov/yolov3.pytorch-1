@@ -18,10 +18,10 @@ class CocoDataset(CocoDetection):
     def __getitem__(self, index):
         """
         Returns
-          path: (str) image file name
-          img: (Tensor) with size [C, H, W]
-          TODO: memory improvements ?
-          target_tensor: (list of Tensor) each list item with size [xc, yc, w, h, label]
+        - path: (str) image file name
+        - img: (Tensor) with size [C, H, W]
+        - TODO: memory improvements ?
+        - target_tensor: (list of Tensor) each list item with size [xc, yc, w, h, label]
         """
         coco = self.coco
         img_id = self.ids[index]
@@ -48,9 +48,9 @@ class CocoDataset(CocoDetection):
         """Collate function for Coco DataLoader
 
         Returns
-          names: (tuple) each is a str of image filename
-          images: (Tensor) with size [bs, C, H, W]
-          annos: (tuple) each is a Tensor of annotations
+        - names: (tuple) each is a str of image filename
+        - images: (Tensor) with size [bs, C, H, W]
+        - annos: (tuple) each is a Tensor of annotations
         """
         names, images, annos = zip(*batch)
         images = default_collate(images)
@@ -61,7 +61,7 @@ class VocDataset(torch.utils.data.dataset.Dataset):
     """Image datasets for PASCAL VOC
 
     Args
-      train_list: (str) full path to train list file
+    - train_list: (str) full path to train list file
     """
 
     def __init__(self, train_list, transform):
@@ -127,7 +127,9 @@ def prepare_train_dataset(name, reso, batch_size=32):
       trainloader: (Dataloader) dataloader for training
     """
     transform = transforms.Compose([
-        transforms.Resize(size=(reso, reso), interpolation=3),
+        transforms.RandomResizedCrop(size=reso, interpolation=3),
+        transforms.ColorJitter(brightness=1.5, saturation=1.5, hue=0.2),
+        transforms.RandomVerticalFlip(),
         transforms.ToTensor()
     ])
 
@@ -166,7 +168,7 @@ def prepare_val_dataset(name, reso, batch_size=32):
         img_datasets = CocoDataset(root=path['val_imgs'], annFile=path['val_anno'], transform=transform)
         dataloder = torch.utils.data.DataLoader(img_datasets, batch_size=batch_size, num_workers=4, collate_fn=CocoDataset.collate_fn, shuffle=True)
     elif name == 'voc':
-        img_datasets = VocDataset(train_list=path['train_imgs'], transform=transform)
+        img_datasets = VocDataset(train_list=path['val_imgs'], transform=transform)
         dataloder = torch.utils.data.DataLoader(img_datasets, batch_size=batch_size, num_workers=4, shuffle=True, collate_fn=VocDataset.collate_fn)
 
 

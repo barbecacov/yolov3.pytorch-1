@@ -117,7 +117,7 @@ def draw_detection(img_path, detection, reso, type):
     Args
     - img_path: (str) path to image
     - detection: (np.array) detection result
-        1. (type == 'pred') with size [#bbox, [batch_idx, top-left x, top-left y, bottom-right x, bottom-right y, objectness, conf, class idx]]
+        1. (type == 'pred') with size [#bbox, [batch_idx, top-left x, top-left y, bottom-right x, bottom-right y, objectness, cls_conf, class idx]]
         2. (type == 'gt') with size [#box, [top-left x, top-left y, bottom-right x, bottom-right y]]
     - reso: (int) image resolution
     - type: (str) prediction or ground truth

@@ -85,6 +85,7 @@ class DetectionLayer(nn.Module):
             pred_cls = x[..., 5:].cuda()  # softmax in cross entropy
         else:
             pred_cls = F.softmax(x[..., 5:], dim=-1).cuda()  # class
+        # pred_cls = torch.sigmoid(x[..., 5:]).cuda()  # sigmoid to avoid inter-class competetion
 
         if self.training == True:
             gt_tx = torch.zeros(bs, nA, gs, gs, requires_grad=False).cuda()
@@ -161,7 +162,7 @@ class NMSLayer(nn.Module):
       nms_thresh: (float) nms threshold
     """
 
-    def __init__(self, conf_thresh=0.5, nms_thresh=0.5, cls_thresh=0.1):
+    def __init__(self, conf_thresh=0.99, nms_thresh=0.5, cls_thresh=0.99):
         super(NMSLayer, self).__init__()
         self.conf_thresh = conf_thresh
         self.nms_thresh = nms_thresh

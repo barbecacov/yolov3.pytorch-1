@@ -44,10 +44,10 @@ def train(epoch, trainloader, yolo, optimizer):
     """Training wrapper
 
     Args
-      epoch: (int) training epoch
-      trainloader: (Dataloader) train data loader 
-      yolo: (nn.Module) YOLOv3 model
-      optimizer: (optim) optimizer
+    - epoch: (int) training epoch
+    - trainloader: (Dataloader) train data loader 
+    - yolo: (nn.Module) YOLOv3 model
+    - optimizer: (optim) optimizer
     """
     yolo.train()
     tbar = tqdm(trainloader, ncols=80, ascii=True)
@@ -56,8 +56,8 @@ def train(epoch, trainloader, yolo, optimizer):
         global_step = batch_idx + epoch * len(trainloader)
 
         # learning rate warm up
-        if (epoch == 0) & (batch_idx <= 1000):
-            lr = args.lr * (batch_idx / 1000) ** 4
+        if (epoch == 0) & (batch_idx <= 100):
+            lr = args.lr * (batch_idx / 100) ** 3
             for g in optimizer.param_groups:
                 g['lr'] = lr
 
@@ -110,8 +110,10 @@ if __name__ == '__main__':
     print(colored("\n==>", 'blue'), emojify("Training :snowflake:\n"))
     optimizer = optim.SGD(filter(lambda p: p.requires_grad, yolo.parameters()),
                           lr=args.lr, momentum=0.9, weight_decay=5e-4, nesterov=True)
-    for epoch in range(start_epoch, start_epoch+20):
+    scheduler = lr_scheduler.StepLR(optimizer, step_size=25, gamma=0.1)
+    for epoch in range(start_epoch, start_epoch+100):
         print("[EPOCH] %d" % epoch)
+        scheduler.step()
         train(epoch, train_dataloader, yolo, optimizer)
         save_checkpoint(opj(config.CKPT_ROOT, args.dataset), epoch + 1, 0, {
             'epoch': epoch + 1,

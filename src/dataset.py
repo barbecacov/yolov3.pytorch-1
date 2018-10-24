@@ -118,13 +118,13 @@ def prepare_train_dataset(name, reso, batch_size=32):
     """Prepare dataset for training
 
     Args  
-      name: (str) dataset name
-      reso: (int) training image resolution
-      batch_size: (int) default 32
+    - name: (str) dataset name
+    - reso: (int) training image resolution
+    - batch_size: (int) default 32
 
     Returns
-      img_datasets: (CocoDataset) image datasets
-      trainloader: (Dataloader) dataloader for training
+    - img_datasets: (CocoDataset) image datasets
+    - trainloader: (Dataloader) dataloader for training
     """
     transform = transforms.Compose([
         transforms.RandomResizedCrop(size=reso, interpolation=3),
@@ -169,7 +169,7 @@ def prepare_val_dataset(name, reso, batch_size=32):
         dataloder = torch.utils.data.DataLoader(img_datasets, batch_size=batch_size, num_workers=4, collate_fn=CocoDataset.collate_fn, shuffle=True)
     elif name == 'voc':
         img_datasets = VocDataset(train_list=path['val_imgs'], transform=transform)
-        dataloder = torch.utils.data.DataLoader(img_datasets, batch_size=batch_size, num_workers=4, shuffle=True, collate_fn=VocDataset.collate_fn)
+        dataloder = torch.utils.data.DataLoader(img_datasets, batch_size=batch_size, num_workers=4, collate_fn=VocDataset.collate_fn, shuffle=True)
 
 
     return img_datasets, dataloder

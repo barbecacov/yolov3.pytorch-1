@@ -59,11 +59,12 @@ class DetectionLayer(nn.Module):
         4. Activation
 
         Args
-          x: (Tensor) feature map with size [bs, (5+nC)*nA, gs, gs]
+        - x: (Tensor) feature map with size [bs, (5+nC)*nA, gs, gs]
             5 => [4 offsets (xc, yc, w, h), objectness]
+        - y_true: (Tensor)
 
         Returns
-          detections: (Tensor) feature map with size [bs, nA, gs, gs, 5+nC]
+        - detections: (Tensor) feature map with size [bs, nA, gs, gs, 5+nC]
         """
         bs, _, gs, _ = x.size()
         stride = self.reso // gs  # no pooling used, stride is the only downsample
@@ -81,6 +82,8 @@ class DetectionLayer(nn.Module):
         pred_tw = x[..., 2].cuda()                      # tw
         pred_th = x[..., 3].cuda()                      # th
         pred_conf = torch.sigmoid(x[..., 4]).cuda()     # objectness
+        from IPython import embed
+        embed()
         if self.training == True:
             pred_cls = x[..., 5:].cuda()  # softmax in cross entropy
         else:
@@ -92,13 +95,14 @@ class DetectionLayer(nn.Module):
             gt_ty = torch.zeros(bs, nA, gs, gs, requires_grad=False).cuda()
             gt_tw = torch.zeros(bs, nA, gs, gs, requires_grad=False).cuda()
             gt_th = torch.zeros(bs, nA, gs, gs, requires_grad=False).cuda()
-            obj_mask = torch.zeros(bs, nA, gs, gs, requires_grad=False).cuda()
-            cls_mask = torch.zeros(bs, nA, gs, gs, requires_grad=False).cuda()
+            coord_mask = torch.zeros(bs, nA, gs, gs, requires_grad=False).cuda()
+            conf_mask = torch.ones(bs, nA, gs, gs, requires_grad=False).cuda()
+            cls_mask = torch.zeros(bs, nA, gs, gs, self.num_classes, requires_grad=False).cuda()
             for batch_idx in range(bs):
                 for box_idx, y_true_one in enumerate(y_true[batch_idx]):
                     y_true_one = y_true_one.cuda()
                     gt_bbox = y_true_one[:4] * gs  # scale bbox relative to feature map
-                    gt_cls_label = int(y_true_one[4])
+                    gt_cls_label = y_true_one[4]
 
                     gt_xc, gt_yc, gt_w, gt_h = gt_bbox[0:4]
                     gt_i = torch.clamp(gt_xc.long(), min=0, max=gs - 1).cuda()
@@ -116,21 +120,25 @@ class DetectionLayer(nn.Module):
                     gt_tx[batch_idx, best_anchor, gt_j, gt_i] = gt_xc - gt_i.float()
                     gt_ty[batch_idx, best_anchor, gt_j, gt_i] = gt_yc - gt_j.float()
 
-                    obj_mask[batch_idx, best_anchor, gt_j, gt_i] = 1
-                    cls_mask[batch_idx, best_anchor, gt_j, gt_i] = gt_cls_label
+                    coord_mask[batch_idx, best_anchor, gt_j, gt_i] = 1
+                    conf_mask[batch_idx, best_anchor, gt_j, gt_i] = 5  # for positive classes
+                    cls_mask[batch_idx, best_anchor, gt_j, gt_i, int(gt_cls_label)] = 1
+
+                    for anchor_idx, anchor_iou in enumerate(anchor_ious):
+                        if anchor_iou > self.ignore_thresh:
+                             conf_mask[batch_idx, anchor_idx, gt_j, gt_i] = 0
 
             MSELoss = nn.MSELoss(size_average=True, reduce=True)
-            BCELoss = nn.BCELoss(size_average=True, reduce=True)
             CELoss = nn.CrossEntropyLoss(size_average=True, reduce=True)
 
             loss = dict()
-            loss['x'] = MSELoss(pred_tx[obj_mask == 1], gt_tx[obj_mask == 1])
-            loss['y'] = MSELoss(pred_ty[obj_mask == 1], gt_ty[obj_mask == 1])
-            loss['w'] = MSELoss(pred_tw[obj_mask == 1], gt_tw[obj_mask == 1])
-            loss['h'] = MSELoss(pred_th[obj_mask == 1], gt_th[obj_mask == 1])
-            # loss['cls'] = BCELoss(pred_cls[obj_mask == 1], cls_mask[obj_mask == 1])
-            loss['cls'] = CELoss(pred_cls[obj_mask == 1].view(-1, self.num_classes), cls_mask[obj_mask == 1].view(-1).long())
-            loss['conf'] = BCELoss(pred_conf[obj_mask == 1], obj_mask[obj_mask == 1])
+            loss['x'] = MSELoss(pred_tx[coord_mask == 1], gt_tx[coord_mask == 1])
+            loss['y'] = MSELoss(pred_ty[coord_mask == 1], gt_ty[coord_mask == 1])
+            loss['w'] = MSELoss(pred_tw[coord_mask == 1], gt_tw[coord_mask == 1])
+            loss['h'] = MSELoss(pred_th[coord_mask == 1], gt_th[coord_mask == 1])
+            loss['cls'] = MSELoss(pred_cls[coord_mask == 1], cls_mask[coord_mask == 1])
+            # loss['cls'] = CELoss(pred_cls[coord_mask == 1].view(-1, self.num_classes), cls_mask[coord_mask == 1].view(-1).long())
+            loss['conf'] = MSELoss(pred_conf * conf_mask, conf_mask)
             return loss
         else:
             grid_x = torch.arange(gs).repeat(gs, 1).view([1, 1, gs, gs]).float().cuda()
@@ -162,7 +170,7 @@ class NMSLayer(nn.Module):
       nms_thresh: (float) nms threshold
     """
 
-    def __init__(self, conf_thresh=0.99, nms_thresh=0.5, cls_thresh=0.99):
+    def __init__(self, conf_thresh=0.99, nms_thresh=0.3, cls_thresh=0.99):
         super(NMSLayer, self).__init__()
         self.conf_thresh = conf_thresh
         self.nms_thresh = nms_thresh
@@ -196,13 +204,15 @@ class NMSLayer(nn.Module):
 
             for cls in classes:
                 cls_pred = non_zero_pred[non_zero_pred[:, -1] == cls]
-                conf_sort_idx = torch.sort(cls_pred[:, 4], descending=True)[1]
+                conf_sort_idx = torch.sort(cls_pred[:, 5], descending=True)[1]
                 cls_pred = cls_pred[conf_sort_idx]
                 max_preds = []
                 while cls_pred.size(0) > 0:
                     max_preds.append(cls_pred[0].unsqueeze(0))
                     ious = IoU(max_preds[-1], cls_pred)
                     cls_pred = cls_pred[ious < self.nms_thresh]
+                    # ious1, ious2 = IoU(max_preds[-1], cls_pred, type='part')
+                    # cls_pred = cls_pred[(ious < self.nms_thresh) * (ious2 == 2)]
 
                 if len(max_preds) > 0:
                     max_preds = torch.cat(max_preds).data

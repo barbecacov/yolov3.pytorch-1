@@ -109,13 +109,15 @@ mAP computation seems not very accruate
 - [ ] Evaluation
   - [x] ~~Draw right bounding box~~
   - [ ] mAP re-implementated
+    - [x] ~~VOC mAP implemented~~
+    - [ ] COCO mAP implemented
 - [ ] Training
   - [x] ~~Loss function implementation~~
   - [x] ~~Visualize training process~~
   - [x] ~~Use pre trained Darknet model to train on custom datasets~~
   - [x] ~~Validation~~
   - [ ] Train COCO from scratch
-  - [x] ~~Train custom datasets from scratch~~
+  - [ ] Train custom datasets from scratch
   - [x] ~~Learning rate scheduler~~
   - [x] ~~Data augumentation~~
 - [ ] General

@@ -37,6 +37,7 @@ datasets = {
         'train_imgs': '/media/data_2/VOCdevkit/voc_train.txt',
         'val_imgs': '/media/data_2/VOCdevkit/2007_test.txt',
         'class_names': ['aeroplane', 'bicycle', 'bird', 'boat', 'bottle', 'bus', 'car', 'cat', 'chair', 'cow', 'diningtable', 'dog', 'horse', 'motorbike', 'person', 'pottedplant', 'sheep', 'sofa', 'train', 'tvmonitor']
+        'result_dir': opj(ROOT, 'metrics/voc/detections')
     }
 }
 
@@ -52,7 +53,6 @@ network = {
 
 # evaluation config
 evaluate = {
-    'label_dir': opj(ROOT, 'assets/labels'),
     'result_dir': opj(ROOT, 'assets/results')
 }
 

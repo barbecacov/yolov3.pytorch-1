@@ -3,6 +3,8 @@ import torch
 import random
 import datetime
 import numpy as np
+import matplotlib.pyplot as plt
+from tqdm import tqdm
 from pyemojify import emojify
 from PIL import Image, ImageFont, ImageDraw
 opj = os.path.join
@@ -87,7 +89,7 @@ def IoU(box1, box2, format='corner', type='full'):
     """Compute IoU between box1 and box2
 
     Args
-    - box: (torch.cuda.Tensor) bboxes with size [# bboxes, 4]  # TODO: cpu
+    - box: (torch.cuda.Tensor) bboxes with size [# bboxes, 4]
     - format: (str) bbox format
         'corner' => [x1, y1, x2, y2]
         'center' => [xc, yc, w, h]
@@ -95,6 +97,9 @@ def IoU(box1, box2, format='corner', type='full'):
         'full' => regular IoU
         'part' => intersect / one bbox area
     """
+    box1 = torch.Tensor(box1).cuda()
+    box2 = torch.Tensor(box2).cuda()
+
     if format == 'center':
         box1 = transform_coord(box1)
         box2 = transform_coord(box2)
@@ -289,5 +294,81 @@ def log(writer, name, info, step):
         raise TypeError("Logging info type", type(info), "is not supported for", name)
 
 
-def mAP():
-    pass
+def voc_mAP(pred_dir, gt_dir, dataset, debug=False):
+    """Compute mAP between predictions and ground truths
+    
+    Args
+    - pred_dir: (str) full path to predictions label file, each file with format
+        [class_idx, confidence, xc, yc, w, h]
+    - gt_dir: (str) full path to predictions label file, each file with format
+        [class_idx, xc, yc, w, h]
+    - dataset: (str) dataset name
+    - debug: (bool)
+    
+    Returns
+    - mAP: (float)
+
+    Variables
+    - preds_cls: (list of np.array) predictions for all images of each class
+        each with size [TP/FP, confidence, xc, yc, w, h]
+    - pred_cls: (np.array) predictions for one image of specified class
+        with size [class_idx, confidence, xc, yc, w, h]
+    - gt_cls: (np.array) ground truths for one image of specified class
+        with size [class_idx, xc, yc, w, h]
+    - fn_cls: (list of int) FN for each class
+    """
+    
+    num_classes = config.datasets[dataset]['num_classes']
+    class_names = config.datasets[dataset]['class_names']
+    num_imgs = len(os.listdir(pred_dir))
+    
+    preds_cls = [np.array([])] * num_classes
+    num_pred_bboxes, num_gt_bboxes = [0] * num_classes, [0] * num_classes
+    APs = []
+
+    for name in tqdm(os.listdir(pred_dir), ncols=80, ascii=True):
+        pred_path = opj(pred_dir, name)
+        gt_path = opj(gt_dir, name)
+        pred = np.loadtxt(pred_path)
+        gt = np.loadtxt(gt_path)
+        if len(pred.shape) == 1 and pred.shape[0] != 0:
+            pred = pred.reshape(1, -1)
+        if len(gt.shape) == 1 and gt.shape[0] != 0:
+            gt = gt.reshape(1, -1)
+        for cls in range(num_classes):
+            pred_cls = pred[pred[:, 0] == cls] if pred.shape[0] != 0 else np.array([])
+            gt_cls = gt[gt[:, 0] == cls] if gt.shape[0] != 0 else np.array([])
+            num_pred_bboxes[cls] += pred_cls.shape[0]
+            num_gt_bboxes[cls] += gt_cls.shape[0]
+            if pred_cls.shape[0] != 0:
+                pred_cls = pred_cls[(-pred_cls[:,1]).argsort()]
+                for idx in range(pred_cls.shape[0]):
+                    if gt_cls.shape[0] == 0:
+                        pred_cls[idx, 0] = -2  # -2 for FP
+                        continue
+                    pred_det = pred_cls[idx]
+                    ious = IoU(np.expand_dims(pred_det, 0)[:, 2:], gt_cls[:, 1:], format='center').cpu().numpy()
+                    best_iou = np.max(ious)
+                    best_idx = np.argmax(ious)
+                    if best_iou > 0.5:
+                        pred_cls[idx, 0] = -1  # -1 for TP
+                        gt_cls = np.concatenate((gt_cls[0:best_idx], gt_cls[best_idx+1:]), 0)
+                preds_cls[cls] = np.concatenate((preds_cls[cls], pred_cls), 0) if preds_cls[cls].shape[0] != 0 else pred_cls
+
+    for class_idx, pred_cls in enumerate(preds_cls):
+        pred_cls = pred_cls[(-pred_cls[:,1]).argsort()]
+        tp = np.cumsum(pred_cls[:,0] == -1)
+        fp = np.cumsum(pred_cls[:,0] == -2)
+        recall = tp / num_gt_bboxes[class_idx]
+        precision = tp / np.maximum(tp + fp, np.finfo(np.float64).eps)
+        mrecall = np.concatenate(([0.], recall, [1.]))
+        mprecision = np.concatenate(([0.], precision, [0.]))
+        for i in range(mprecision.size - 1, 0, -1):
+            mprecision[i - 1] = np.maximum(mprecision[i - 1], mprecision[i])
+        i = np.where(mrecall[1:] != mrecall[:-1])[0]
+        ap = np.sum((mrecall[i + 1] - mrecall[i]) * mprecision[i + 1])
+        APs.append(ap)
+        print(ap, class_idx)
+    
+    mAP = np.mean(APs)
+    return mAP
